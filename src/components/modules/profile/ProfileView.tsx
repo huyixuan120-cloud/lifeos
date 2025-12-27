@@ -217,7 +217,19 @@ export function ProfileView() {
           setGoogleUserEmail(session.user.email || null);
 
           if (isGoogle) {
-            console.log('✅ Google Calendar connected:', session.user.email);
+            console.log('✅ Google Calendar connected:', {
+              email: session.user.email,
+              hasProviderToken,
+              hasRefreshToken: !!session.provider_refresh_token,
+            });
+          } else if (provider === 'google' && !hasProviderToken) {
+            console.error('❌ CRITICAL: Google session exists but NO provider_token!', {
+              provider,
+              hasProviderToken,
+              userId: session.user.id,
+              scopes: session.user.app_metadata?.provider_scopes,
+            });
+            console.error('❌ This means Google Calendar API will NOT work. Session did not persist OAuth tokens.');
           } else {
             console.log('⚠️ Session exists but not Google:', { provider, hasProviderToken });
           }
@@ -254,7 +266,21 @@ export function ProfileView() {
           setGoogleUserEmail(session.user.email || null);
 
           if (isGoogle) {
-            console.log('✅ Google authenticated:', session.user.email);
+            console.log('✅ Google authenticated:', {
+              event,
+              email: session.user.email,
+              hasProviderToken,
+              hasRefreshToken: !!session.provider_refresh_token,
+            });
+          } else if (provider === 'google' && !hasProviderToken) {
+            console.error('❌ CRITICAL: Google session exists but NO provider_token!', {
+              event,
+              provider,
+              hasProviderToken,
+              userId: session.user.id,
+              scopes: session.user.app_metadata?.provider_scopes,
+            });
+            console.error('❌ This means Google Calendar API will NOT work. Session did not persist OAuth tokens.');
           }
         } else if (event === 'SIGNED_OUT') {
           setIsGoogleConnected(false);

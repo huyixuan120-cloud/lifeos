@@ -9,6 +9,11 @@ import { createBrowserClient } from "@supabase/ssr";
  * Environment Variables Required:
  * - NEXT_PUBLIC_SUPABASE_URL: Your Supabase project URL
  * - NEXT_PUBLIC_SUPABASE_ANON_KEY: Your Supabase anon/public key
+ *
+ * CRITICAL CONFIG:
+ * - persistSession: true - Ensures session persists across page reloads
+ * - autoRefreshToken: true - Automatically refreshes expired tokens
+ * - detectSessionInUrl: true - Detects OAuth callback sessions in URL
  */
 export function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -22,9 +27,28 @@ export function createClient() {
     // The actual error will be shown in the UI when the user tries to use the calendar
     return createBrowserClient(
       supabaseUrl || "https://placeholder.supabase.co",
-      supabaseKey || "placeholder-key"
+      supabaseKey || "placeholder-key",
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          flowType: 'pkce',
+        },
+      }
     );
   }
 
-  return createBrowserClient(supabaseUrl, supabaseKey);
+  return createBrowserClient(
+    supabaseUrl,
+    supabaseKey,
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        flowType: 'pkce',
+      },
+    }
+  );
 }

@@ -27,12 +27,27 @@ import { supabase } from './supabase';
  * ```
  */
 export async function signInWithGoogle() {
+  // Explicitly determine the correct redirect URL
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+
+  // Use the current origin to ensure it works on both localhost and Vercel
+  const redirectUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/auth/callback`
+    : 'http://localhost:3000/auth/callback';
+
+  console.log('🚀 Starting Google OAuth:', {
+    isDevelopment,
+    isLocalhost,
+    redirectUrl,
+    currentOrigin: typeof window !== 'undefined' ? window.location.origin : 'N/A',
+  });
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
       // Redirect URL after successful authentication
-      // Uses window.location.origin to work on both localhost and Vercel
-      redirectTo: `${window.location.origin}/auth/callback`,
+      redirectTo: redirectUrl,
 
       // Google-specific OAuth parameters
       queryParams: {

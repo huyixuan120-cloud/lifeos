@@ -10,19 +10,30 @@ import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
+  console.log('\n\n');
+  console.log('='.repeat(80));
+  console.log('🔥🔥🔥 CALLBACK HIT! CALLBACK HIT! CALLBACK HIT! 🔥🔥🔥');
+  console.log('='.repeat(80));
+  console.log('\n');
+
   const requestUrl = new URL(request.url);
   const { searchParams, origin } = requestUrl;
   const code = searchParams.get('code');
   const error = searchParams.get('error');
   const errorDescription = searchParams.get('error_description');
 
-  console.log('🔄 OAuth Callback Handler:', {
+  console.log('🔄 OAuth Callback Handler Details:', {
     origin,
+    hostname: requestUrl.hostname,
+    pathname: requestUrl.pathname,
     hasCode: !!code,
+    codeLength: code?.length,
     error,
     errorDescription,
     fullUrl: requestUrl.toString(),
+    allParams: Object.fromEntries(searchParams.entries()),
   });
+  console.log('\n');
 
   // Handle OAuth errors from Google
   if (error) {
@@ -92,7 +103,15 @@ export async function GET(request: NextRequest) {
 
     // Redirect to profile with success status
     const redirectUrl = `${origin}/profile?status=connected`;
-    console.log('✅ Redirecting to:', redirectUrl);
+
+    console.log('\n');
+    console.log('='.repeat(80));
+    console.log('🎉🎉🎉 SUCCESS! REDIRECTING NOW! 🎉🎉🎉');
+    console.log('='.repeat(80));
+    console.log('Redirect URL:', redirectUrl);
+    console.log('Origin:', origin);
+    console.log('='.repeat(80));
+    console.log('\n\n');
 
     return NextResponse.redirect(redirectUrl);
 

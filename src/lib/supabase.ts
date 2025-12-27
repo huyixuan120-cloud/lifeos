@@ -18,5 +18,21 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 /**
  * Create a Supabase client for browser-side operations
+ *
+ * CRITICAL CONFIG:
+ * - persistSession: true - Ensures session persists across page reloads
+ * - autoRefreshToken: true - Automatically refreshes expired tokens
+ * - detectSessionInUrl: true - Detects OAuth callback sessions in URL
  */
-export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createBrowserClient(
+  supabaseUrl,
+  supabaseAnonKey,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce',
+    },
+  }
+);
