@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Flame, Star } from "lucide-react";
+import { Plus, Flame, Star, Target } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,8 +15,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { CreateTaskInput, TaskPriority } from "@/types/tasks";
 import { cn } from "@/lib/utils";
+import { useLifeOS } from "@/hooks/useLifeOS";
 
 interface TaskCreateDialogProps {
   onAdd: (taskData: CreateTaskInput) => Promise<void>;
@@ -59,12 +67,16 @@ export function TaskCreateDialog({
 
   const [isAdding, setIsAdding] = useState(false);
 
+  // Get goals data from global context
+  const { goals } = useLifeOS();
+
   // Form state
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [isUrgent, setIsUrgent] = useState(false);
   const [isImportant, setIsImportant] = useState(false);
   const [dueDate, setDueDate] = useState("");
+  const [goalId, setGoalId] = useState<string>("none");
 
   // Populate form with initial data when in edit mode
   useEffect(() => {
@@ -74,6 +86,7 @@ export function TaskCreateDialog({
       setIsUrgent(initialData.is_urgent || false);
       setIsImportant(initialData.is_important || false);
       setDueDate(initialData.due_date || "");
+      setGoalId(initialData.goalId || "none");
     }
   }, [initialData, mode]);
 
@@ -83,6 +96,7 @@ export function TaskCreateDialog({
     setIsUrgent(false);
     setIsImportant(false);
     setDueDate("");
+    setGoalId("none");
   };
 
   const handleSubmit = async () => {
@@ -98,6 +112,7 @@ export function TaskCreateDialog({
         is_important: isImportant,
         due_date: dueDate || null,
         is_completed: false,
+        goalId: goalId === "none" ? null : goalId, // Link to selected goal
       };
 
       if (mode === "edit" && onSubmit) {
@@ -200,6 +215,39 @@ export function TaskCreateDialog({
                 High
               </Button>
             </div>
+          </div>
+
+          {/* Goal Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="goal" className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-blue-600" />
+              Linked Goal (Optional)
+            </Label>
+            <Select value={goalId} onValueChange={setGoalId}>
+              <SelectTrigger id="goal" disabled={isAdding}>
+                <SelectValue placeholder="Select a goal..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <span className="text-muted-foreground">No Goal</span>
+                </SelectItem>
+                {goals.map((goal) => (
+                  <SelectItem key={goal.id} value={goal.id}>
+                    <div className="flex items-center gap-2">
+                      <span>{goal.title}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({goal.progress}%)
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {goalId && goalId !== "none" && (
+              <p className="text-xs text-muted-foreground">
+                💡 Completing this task will update your goal progress automatically
+              </p>
+            )}
           </div>
 
           {/* Eisenhower Matrix Toggles */}

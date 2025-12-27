@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useTasks } from "@/hooks/use-tasks";
+import { useLifeOS } from "@/hooks/useLifeOS";
 import { TaskList } from "@/components/modules/tasks/TaskList";
 import { EisenhowerMatrix } from "@/components/modules/tasks/EisenhowerMatrix";
 import { TaskCreateDialog } from "@/components/modules/tasks/TaskCreateDialog";
@@ -14,46 +14,59 @@ import type { LifeOSTask } from "@/types/tasks";
  * - Main Area (Left/2/3): Task List with quick add and advanced creation
  * - Strategy Widget (Right/1/3): Eisenhower Matrix for prioritization
  *
- * Uses the useTasks hook for data management and Supabase integration.
+ * Now integrated with the global LifeOS Smart Integration System!
+ * - Task completion awards XP and levels up your profile
+ * - Tasks linked to goals automatically update goal progress
+ * - Full gamification and cross-module integration
  */
 export default function TasksPage() {
-  const { tasks, isLoading, error, addTask, updateTask, toggleTask, deleteTask } = useTasks();
+  const { tasks, addTask, updateTask, deleteTask, completeTask } = useLifeOS();
 
   // Edit Dialog State
   const [editingTask, setEditingTask] = useState<LifeOSTask | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-muted-foreground">Loading tasks...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-        <div className="text-destructive font-medium mb-2">Error loading tasks</div>
-        <div className="text-sm text-muted-foreground">{error}</div>
-      </div>
-    );
-  }
-
   // Wrapper for updating task (Matrix view needs partial updates)
-  const handleUpdateTask = async (taskId: string, updates: Partial<any>) => {
-    await updateTask({ id: taskId, ...updates });
+  const handleUpdateTask = (taskId: string, updates: Partial<any>) => {
+    updateTask(taskId, updates);
   };
 
   // Wrapper for creating task (Matrix view passes different structure)
-  const handleCreateTask = async (taskData: any) => {
-    await addTask({
+  const handleCreateTask = (taskData: any) => {
+    addTask({
       title: taskData.title,
       priority: taskData.priority ?? "medium",
       is_urgent: taskData.is_urgent ?? false,
       is_important: taskData.is_important ?? false,
       is_completed: false,
+      effort: "medium", // Default effort level for XP calculation
+      goalId: taskData.goalId ?? null, // Link to goal if selected
     });
+  };
+
+  // Wrapper for adding task (from TaskList)
+  const handleAddTask = (taskData: any) => {
+    addTask({
+      title: taskData.title,
+      priority: taskData.priority ?? "medium",
+      is_urgent: taskData.is_urgent ?? false,
+      is_important: taskData.is_important ?? false,
+      is_completed: false,
+      due_date: taskData.due_date ?? null,
+      effort: "medium", // Default effort level
+      goalId: taskData.goalId ?? null, // Link to goal if selected
+    });
+  };
+
+  // Toggle task completion - Uses smart completeTask from context
+  // This automatically awards XP and updates linked goals!
+  const handleToggleTask = (taskId: string, isCompleted: boolean) => {
+    if (isCompleted) {
+      completeTask(taskId); // Smart completion with XP rewards
+    } else {
+      // If uncompleting, just update the task
+      updateTask(taskId, { is_completed: false });
+    }
   };
 
   // Edit Handler - Opens edit dialog with task data
@@ -63,16 +76,16 @@ export default function TasksPage() {
   };
 
   // Edit Submit Handler - Updates task with new data
-  const handleEditSubmit = async (taskData: any) => {
+  const handleEditSubmit = (taskData: any) => {
     if (!editingTask) return;
 
-    await updateTask({
-      id: editingTask.id,
+    updateTask(editingTask.id, {
       title: taskData.title,
       priority: taskData.priority,
       is_urgent: taskData.is_urgent,
       is_important: taskData.is_important,
       due_date: taskData.due_date,
+      goalId: taskData.goalId ?? null, // Update goal link
     });
 
     setIsEditDialogOpen(false);
@@ -97,9 +110,9 @@ export default function TasksPage() {
           {/* Main Area - Task List (2/3 width on desktop) */}
           <div className="lg:col-span-2 flex flex-col gap-6">
             <TaskList
-              tasks={tasks}
-              onAdd={addTask}
-              onToggle={toggleTask}
+              tasks={tasks as LifeOSTask[]}
+              onAdd={handleAddTask}
+              onToggle={handleToggleTask}
               onDelete={deleteTask}
               onEdit={handleEditTask}
             />
@@ -109,7 +122,7 @@ export default function TasksPage() {
           <div className="lg:col-span-1 sticky top-8">
             <div className="overflow-hidden rounded-lg border bg-card">
               <EisenhowerMatrix
-                tasks={tasks}
+                tasks={tasks as LifeOSTask[]}
                 onUpdateTask={handleUpdateTask}
                 onCreateTask={handleCreateTask}
                 compact={true}
@@ -129,7 +142,7 @@ export default function TasksPage() {
         initialData={editingTask}
         mode={editingTask ? "edit" : "create"}
         onSubmit={handleEditSubmit}
-        onAdd={addTask}
+        onAdd={handleAddTask}
       />
     </div>
   );

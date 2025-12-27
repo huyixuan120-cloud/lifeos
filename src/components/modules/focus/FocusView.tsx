@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Play, Pause, RotateCcw, Trophy, Sprout } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useLifeOS } from "@/hooks/useLifeOS";
 
 /**
  * FocusView - Pomodoro Timer with "Zen Growth" Theme
@@ -20,25 +21,41 @@ import { cn } from "@/lib/utils";
  * Inspired by the Forest App - grow a plant as you focus.
  * As time progresses, the plant evolves from seed to tree.
  *
+ * Now fully integrated with the global LifeOS Smart Integration System!
+ * - Timer state persists across page navigations
+ * - Completing a focus session awards XP (10 XP per minute)
+ * - Focus minutes are tracked in your profile
+ * - Browser notifications when session completes
+ * - Sessions contribute to your overall progression
+ *
  * @example
  * ```tsx
  * <FocusView />
  * ```
  */
 export function FocusView() {
-  // Timer State
-  const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes in seconds
-  const [initialTime, setInitialTime] = useState(25 * 60);
-  const [isActive, setIsActive] = useState(false);
-  const [sessionCount, setSessionCount] = useState(0);
+  // Global State - Timer persists across pages!
+  const {
+    timerState,
+    startTimer,
+    pauseTimer,
+    resetTimer,
+    setTimerDuration,
+    setTimerTaskId,
+    userProfile,
+  } = useLifeOS();
+
+  // Local UI State (not timer-related)
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [customTask, setCustomTask] = useState("");
-  const [showCelebration, setShowCelebration] = useState(false);
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Calculate progress percentage (0 to 100) from global timer
+  const progress = timerState.duration > 0
+    ? ((timerState.duration - timerState.timeLeft) / timerState.duration) * 100
+    : 0;
 
-  // Calculate progress percentage (0 to 100)
-  const progress = ((initialTime - timeLeft) / initialTime) * 100;
+  // Calculate total sessions from focus minutes (assuming 25min average)
+  const totalSessions = Math.floor(userProfile.focusMinutes / 25);
 
   // Format time as MM:SS
   const formatTime = (seconds: number): string => {
@@ -58,82 +75,33 @@ export function FocusView() {
 
   const plant = getPlantIcon();
 
-  // Timer countdown logic
-  useEffect(() => {
-    if (isActive && timeLeft > 0) {
-      intervalRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            // Timer completed!
-            handleCompletion();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [isActive, timeLeft]);
-
-  // Handle timer completion
-  const handleCompletion = () => {
-    setIsActive(false);
-    setSessionCount((prev) => prev + 1);
-    setShowCelebration(true);
-
-    // TODO: Play notification sound
-    // const audio = new Audio('/sounds/complete.mp3');
-    // audio.play();
-
-    // Hide celebration after 3 seconds
-    setTimeout(() => {
-      setShowCelebration(false);
-    }, 3000);
-  };
-
-  // Control handlers
+  // Control handlers - Delegate to global context
   const handlePlayPause = () => {
-    setIsActive(!isActive);
+    if (timerState.isActive) {
+      pauseTimer();
+    } else {
+      startTimer();
+    }
   };
 
   const handleReset = () => {
-    setIsActive(false);
-    setTimeLeft(initialTime);
+    resetTimer();
   };
 
   const handleDurationChange = (minutes: number) => {
-    const seconds = minutes * 60;
-    setInitialTime(seconds);
-    setTimeLeft(seconds);
-    setIsActive(false);
+    setTimerDuration(minutes);
+  };
+
+  // Update linked task in global timer
+  const handleTaskSelection = (taskValue: string) => {
+    setSelectedTask(taskValue);
+    // TODO: Link to actual task ID if taskValue is a real task
+    // For now, just update the timer task ID
+    setTimerTaskId(taskValue === "custom" ? null : taskValue);
   };
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-gradient-to-b from-green-50 via-emerald-50 to-teal-50 dark:from-green-950 dark:via-emerald-950 dark:to-teal-950">
-      {/* Celebration Overlay */}
-      {showCelebration && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="flex flex-col items-center gap-4 animate-in zoom-in duration-500">
-            <div className="text-9xl animate-bounce">🎉</div>
-            <div className="text-4xl font-bold text-green-700 dark:text-green-300">
-              Task Completed!
-            </div>
-            <div className="text-xl text-green-600 dark:text-green-400">
-              Your tree has bloomed! 🌳✨
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Main Content */}
       <div className="flex flex-col h-full">
         {/* Top Bar - Session Counter */}
@@ -143,7 +111,10 @@ export function FocusView() {
             <div>
               <p className="text-sm text-muted-foreground">Today's Harvest</p>
               <p className="text-2xl font-bold text-green-700 dark:text-green-300">
-                {sessionCount} Tree{sessionCount !== 1 ? "s" : ""} 🌲
+                {totalSessions} Session{totalSessions !== 1 ? "s" : ""} 🌲
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {userProfile.focusMinutes.toLocaleString("en-US")} total minutes
               </p>
             </div>
           </div>
@@ -151,34 +122,34 @@ export function FocusView() {
           {/* Quick Duration Selector */}
           <div className="flex gap-2">
             <Button
-              variant={initialTime === 15 * 60 ? "default" : "outline"}
+              variant={timerState.duration === 15 * 60 ? "default" : "outline"}
               size="sm"
               onClick={() => handleDurationChange(15)}
-              disabled={isActive}
+              disabled={timerState.isActive}
               className={cn(
-                initialTime === 15 * 60 && "bg-green-600 hover:bg-green-700"
+                timerState.duration === 15 * 60 && "bg-green-600 hover:bg-green-700"
               )}
             >
               15m
             </Button>
             <Button
-              variant={initialTime === 25 * 60 ? "default" : "outline"}
+              variant={timerState.duration === 25 * 60 ? "default" : "outline"}
               size="sm"
               onClick={() => handleDurationChange(25)}
-              disabled={isActive}
+              disabled={timerState.isActive}
               className={cn(
-                initialTime === 25 * 60 && "bg-green-600 hover:bg-green-700"
+                timerState.duration === 25 * 60 && "bg-green-600 hover:bg-green-700"
               )}
             >
               25m
             </Button>
             <Button
-              variant={initialTime === 45 * 60 ? "default" : "outline"}
+              variant={timerState.duration === 45 * 60 ? "default" : "outline"}
               size="sm"
               onClick={() => handleDurationChange(45)}
-              disabled={isActive}
+              disabled={timerState.isActive}
               className={cn(
-                initialTime === 45 * 60 && "bg-green-600 hover:bg-green-700"
+                timerState.duration === 45 * 60 && "bg-green-600 hover:bg-green-700"
               )}
             >
               45m
@@ -222,7 +193,7 @@ export function FocusView() {
               <div
                 className={cn(
                   "text-9xl transition-all duration-500",
-                  isActive && "animate-breathing"
+                  timerState.isActive && "animate-breathing"
                 )}
               >
                 {plant.emoji}
@@ -243,8 +214,16 @@ export function FocusView() {
           {/* Timer Display */}
           <div className="text-center space-y-4">
             <div className="font-mono text-7xl font-bold text-green-800 dark:text-green-200 tabular-nums">
-              {formatTime(timeLeft)}
+              {formatTime(timerState.timeLeft)}
             </div>
+
+            {/* Timer Status Indicator */}
+            {timerState.isActive && (
+              <div className="flex items-center justify-center gap-2 text-green-600 dark:text-green-400">
+                <div className="w-2 h-2 bg-green-600 dark:bg-green-400 rounded-full animate-pulse" />
+                <span className="text-sm font-medium">Timer Running...</span>
+              </div>
+            )}
 
             {/* Control Buttons */}
             <div className="flex items-center justify-center gap-4">
@@ -264,7 +243,7 @@ export function FocusView() {
                 onClick={handlePlayPause}
                 className="h-16 px-10 bg-green-600 hover:bg-green-700 text-white text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
               >
-                {isActive ? (
+                {timerState.isActive ? (
                   <>
                     <Pause className="h-6 w-6 mr-2" />
                     Pause
@@ -272,7 +251,7 @@ export function FocusView() {
                 ) : (
                   <>
                     <Play className="h-6 w-6 mr-2" />
-                    {timeLeft === initialTime ? "Start" : "Resume"}
+                    {timerState.timeLeft === timerState.duration ? "Start" : "Resume"}
                   </>
                 )}
               </Button>
@@ -290,7 +269,7 @@ export function FocusView() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Task Selector */}
-              <Select value={selectedTask || ""} onValueChange={setSelectedTask}>
+              <Select value={selectedTask || ""} onValueChange={handleTaskSelection}>
                 <SelectTrigger className="h-12 border-green-300 dark:border-green-700 bg-white dark:bg-green-950">
                   <SelectValue placeholder="Select a task..." />
                 </SelectTrigger>
@@ -336,6 +315,15 @@ export function FocusView() {
                 <p className="text-sm text-green-700 dark:text-green-300">
                   Growing focus for:{" "}
                   <span className="font-semibold">✏️ {customTask}</span>
+                </p>
+              </div>
+            )}
+
+            {/* Global Timer Status Info */}
+            {timerState.isActive && (
+              <div className="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                <p className="text-xs text-blue-700 dark:text-blue-300 text-center">
+                  💡 Timer runs globally - navigate anywhere and it will keep counting!
                 </p>
               </div>
             )}
