@@ -35,7 +35,7 @@ const navigationItems: NavItem[] = [
   { icon: CheckCircle, label: "Tasks", href: "/tasks" },
   { icon: LayoutGrid, label: "Dashboard", href: "/" },
   { icon: Calendar, label: "Calendar", href: "/calendar" },
-  { icon: Clock, label: "Time Tracker", href: "#" },
+  { icon: Clock, label: "Focus", href: "/focus" },
   { icon: Target, label: "Goals", href: "#" },
   { icon: Star, label: "Favorites", href: "#" },
   { icon: Search, label: "Search", href: "#" },
