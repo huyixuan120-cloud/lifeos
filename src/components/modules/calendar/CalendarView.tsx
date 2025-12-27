@@ -1513,7 +1513,6 @@ function ActionPanel({
                       }`}
                       style={{
                         backgroundColor: color.value,
-                        ringColor: selectedColor === color.value ? color.value : undefined
                       }}
                       title={color.name}
                       disabled={isSubmitting}
