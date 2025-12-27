@@ -27,8 +27,8 @@ export default function TasksPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   // Wrapper for updating task (Matrix view needs partial updates)
-  const handleUpdateTask = (taskId: string, updates: Partial<any>) => {
-    updateTask(taskId, updates);
+  const handleUpdateTask = async (taskId: string, updates: Partial<any>) => {
+    await updateTask(taskId, updates);
   };
 
   // Wrapper for creating task (Matrix view passes different structure)
