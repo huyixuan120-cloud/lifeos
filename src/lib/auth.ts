@@ -27,15 +27,12 @@ import { supabase } from './supabase';
  * ```
  */
 export async function signInWithGoogle() {
-  // Get the current origin (works in both localhost and production)
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const redirectUrl = `${origin}/auth/callback`;
-
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
       // Redirect URL after successful authentication
-      redirectTo: redirectUrl,
+      // Uses window.location.origin to work on both localhost and Vercel
+      redirectTo: `${window.location.origin}/auth/callback`,
 
       // Google-specific OAuth parameters
       queryParams: {

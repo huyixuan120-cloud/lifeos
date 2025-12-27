@@ -187,6 +187,14 @@ export function ProfileView() {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
+        // Check if we were redirected from OAuth callback
+        const urlParams = new URLSearchParams(window.location.search);
+        const status = urlParams.get('status');
+
+        if (status === 'connected') {
+          console.log('✅ Detected OAuth success from URL parameter');
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
 
         console.log('🔍 Checking auth status:', {
@@ -194,6 +202,7 @@ export function ProfileView() {
           hasUser: !!session?.user,
           provider: session?.user?.app_metadata?.provider,
           hasProviderToken: !!session?.provider_token,
+          urlStatus: status,
         });
 
         if (session?.user) {
