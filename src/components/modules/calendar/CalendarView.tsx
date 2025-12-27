@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -8,10 +8,12 @@ import interactionPlugin, { Draggable, type DateClickArg, type EventReceiveArg }
 import type { EventClickArg, DateSelectArg, EventChangeArg } from "@fullcalendar/core";
 import { useCalendar } from "@/hooks/use-calendar";
 import { useTasks } from "@/hooks/use-tasks";
-import { Loader2, GripVertical, Calendar as CalendarIcon, Plus, X, Trash2, Clock } from "lucide-react";
+import { Loader2, GripVertical, Calendar as CalendarIcon, Plus, X, Trash2, Clock, AlignLeft, MapPin, CheckSquare } from "lucide-react";
 import { PRIORITY_COLORS } from "@/types/tasks";
 import type { LifeOSTask } from "@/types/tasks";
 import type { LifeOSEvent } from "@/types/calendar";
+import { CalendarTaskSidebar } from "./CalendarTaskSidebar";
+import { TaskCreateDialog } from "@/components/modules/tasks/TaskCreateDialog";
 import { addHours, setHours, setMinutes, setSeconds, setMilliseconds, format as formatDate, isSameDay, getHours, isWithinInterval, startOfHour } from "date-fns";
 import {
   EventDialog,
@@ -31,6 +33,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface DialogState {
   isOpen: boolean;
@@ -46,6 +51,8 @@ interface DraftEvent {
   allDay: boolean;
   color: string;
   viewType: string;
+  isUrgent?: boolean;
+  isImportant?: boolean;
 }
 
 interface DayOverview {
@@ -57,18 +64,34 @@ interface SelectedSlot {
   hour: number;
   event?: any;
   mode: "create" | "view";
+  startTime?: string; // Optional: For drag-to-create pre-filled times
+  endTime?: string;   // Optional: For drag-to-create pre-filled times
 }
 
 interface PendingTask {
   title: string;
   color: string;
+  isUrgent?: boolean;
+  isImportant?: boolean;
 }
+
+// Google Calendar-style color palette
+const EVENT_COLORS = [
+  { name: "Lavanda", value: "#7986cb" },
+  { name: "Salvia", value: "#33b679" },
+  { name: "Uva", value: "#8e24aa" },
+  { name: "Fiamma", value: "#e67c73" },
+  { name: "Banana", value: "#f6c026" },
+  { name: "Mandarino", value: "#f5511d" },
+  { name: "Pavone", value: "#039be5" },
+  { name: "Grafite", value: "#616161" },
+];
 
 export function CalendarView() {
   const calendarRef = useRef<FullCalendar>(null);
   const taskContainerRef = useRef<HTMLDivElement>(null);
   const { events, isLoading, error, addEvent, updateEvent, deleteEvent } = useCalendar();
-  const { tasks } = useTasks();
+  const { tasks, addTask: createTask, updateTask: editTask } = useTasks();
 
   const [dialogState, setDialogState] = useState<DialogState>({
     isOpen: false,
@@ -85,20 +108,40 @@ export function CalendarView() {
 
   const [pendingTaskToSchedule, setPendingTaskToSchedule] = useState<PendingTask | null>(null);
 
+  // Task Edit Dialog State
+  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<LifeOSTask | null>(null);
+
   useEffect(() => {
     if (taskContainerRef.current) {
       const draggable = new Draggable(taskContainerRef.current, {
         itemSelector: ".draggable-task",
         eventData: function (eventEl) {
           const title = eventEl.getAttribute("data-title");
-          const color = eventEl.getAttribute("data-color");
+          const isUrgent = eventEl.getAttribute("data-urgent") === "true";
+          const isImportant = eventEl.getAttribute("data-important") === "true";
+
+          // Eisenhower Matrix Color Coding
+          let color = "#9ca3af"; // Q4: Not Urgent, Not Important (Gray-400)
+          if (isUrgent && isImportant) {
+            color = "#ef4444"; // Q1: Urgent & Important (Red-500)
+          } else if (!isUrgent && isImportant) {
+            color = "#3b82f6"; // Q2: Important, Not Urgent (Blue-500)
+          } else if (isUrgent && !isImportant) {
+            color = "#eab308"; // Q3: Urgent, Not Important (Yellow-500)
+          }
+
           return {
             title: title || "Untitled Task",
-            backgroundColor: color || "#3b82f6",
-            borderColor: color || "#3b82f6",
+            backgroundColor: color,
+            borderColor: color,
             textColor: "#ffffff",
             duration: { hours: 1 },
-            color: color || "#3b82f6",
+            color: color,
+            extendedProps: {
+              isUrgent,
+              isImportant,
+            },
           };
         },
       });
@@ -134,6 +177,8 @@ export function CalendarView() {
       allDay: shouldBeAllDay,
       color: event.backgroundColor || "#3b82f6",
       viewType: viewType,
+      isUrgent: event.extendedProps?.isUrgent ?? false,
+      isImportant: event.extendedProps?.isImportant ?? false,
     });
 
     event.remove();
@@ -179,6 +224,8 @@ export function CalendarView() {
       setPendingTaskToSchedule({
         title: draftEvent.title,
         color: draftEvent.color,
+        isUrgent: draftEvent.isUrgent,
+        isImportant: draftEvent.isImportant,
       });
       setDayOverview({
         isOpen: true,
@@ -317,6 +364,32 @@ export function CalendarView() {
     });
   };
 
+  // Task Edit Handler
+  const handleEditTask = (task: LifeOSTask) => {
+    setEditingTask(task);
+    setIsTaskDialogOpen(true);
+  };
+
+  const handleTaskDialogClose = () => {
+    setIsTaskDialogOpen(false);
+    setEditingTask(null);
+  };
+
+  const handleTaskUpdate = async (taskData: any) => {
+    if (!editingTask) return;
+
+    await editTask({
+      id: editingTask.id,
+      title: taskData.title,
+      priority: taskData.priority,
+      due_date: taskData.due_date,
+      is_urgent: taskData.is_urgent,
+      is_important: taskData.is_important,
+    });
+
+    handleTaskDialogClose();
+  };
+
   const incompleteTasks = tasks.filter((task) => !task.is_completed);
 
   if (isLoading) {
@@ -399,33 +472,44 @@ export function CalendarView() {
                   endTime: "17:00",
                 }}
                 nowIndicator={true}
+                eventContent={(eventInfo) => {
+                  const event = eventInfo.event;
+                  const isUrgent = event.extendedProps?.isUrgent ?? false;
+                  const isImportant = event.extendedProps?.isImportant ?? false;
+
+                  // Determine icon based on quadrant
+                  let icon = "";
+                  if (isUrgent && isImportant) {
+                    icon = "🔥"; // Q1
+                  } else if (!isUrgent && isImportant) {
+                    icon = "💎"; // Q2
+                  } else if (isUrgent && !isImportant) {
+                    icon = "⚡"; // Q3
+                  }
+
+                  return (
+                    <div className="flex items-center gap-1 px-2 py-1 overflow-hidden w-full">
+                      {icon && <span className="text-xs flex-shrink-0">{icon}</span>}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium truncate text-white">
+                          {eventInfo.timeText && (
+                            <span className="mr-1">{eventInfo.timeText}</span>
+                          )}
+                          {event.title}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }}
               />
             </div>
 
-            <div className="w-80 border-l bg-muted/30 flex flex-col">
-              <div className="p-4 border-b bg-background">
-                <h3 className="font-semibold text-sm">Time-Box Tasks</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Drag tasks onto the calendar
-                </p>
-              </div>
-
-              <div
-                ref={taskContainerRef}
-                className="flex-1 overflow-y-auto p-4 space-y-2"
-              >
-                {incompleteTasks.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-muted-foreground">
-                      No tasks to time-box
-                    </p>
-                  </div>
-                ) : (
-                  incompleteTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} />
-                  ))
-                )}
-              </div>
+            {/* Enhanced Task Sidebar with Priority Sections */}
+            <div ref={taskContainerRef}>
+              <CalendarTaskSidebar
+                tasks={incompleteTasks}
+                onEditTask={handleEditTask}
+              />
             </div>
           </div>
         </div>
@@ -459,6 +543,19 @@ export function CalendarView() {
         onAddEvent={addEvent}
         onDeleteEvent={deleteEvent}
       />
+
+      {/* Task Edit Dialog */}
+      <TaskCreateDialog
+        open={isTaskDialogOpen}
+        onOpenChange={(open) => {
+          setIsTaskDialogOpen(open);
+          if (!open) setEditingTask(null);
+        }}
+        initialData={editingTask}
+        mode={editingTask ? "edit" : "create"}
+        onSubmit={handleTaskUpdate}
+        onAdd={createTask}
+      />
     </>
   );
 }
@@ -466,26 +563,51 @@ export function CalendarView() {
 function TaskCard({ task }: { task: LifeOSTask }) {
   const priorityInfo = PRIORITY_COLORS[task.priority];
 
+  // Determine Eisenhower quadrant color
+  const isUrgent = task.is_urgent ?? false;
+  const isImportant = task.is_important ?? false;
+
+  let quadrantColor = "#9ca3af"; // Q4: Gray
+  let quadrantIcon = "🗑️";
+  if (isUrgent && isImportant) {
+    quadrantColor = "#ef4444"; // Q1: Red
+    quadrantIcon = "🔥";
+  } else if (!isUrgent && isImportant) {
+    quadrantColor = "#3b82f6"; // Q2: Blue
+    quadrantIcon = "💎";
+  } else if (isUrgent && !isImportant) {
+    quadrantColor = "#eab308"; // Q3: Yellow
+    quadrantIcon = "⚡";
+  }
+
   return (
     <div
       className="draggable-task p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-move transition-colors"
       data-title={task.title}
       data-color={priorityInfo.bg}
+      data-urgent={isUrgent.toString()}
+      data-important={isImportant.toString()}
     >
       <div className="flex items-start gap-2">
         <GripVertical className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <div
-              className="w-2 h-2 rounded-full flex-shrink-0"
-              style={{ backgroundColor: priorityInfo.bg }}
-              title={priorityInfo.label}
-            />
+            {/* Eisenhower Quadrant Icon */}
+            <span className="text-sm flex-shrink-0" title={`${isUrgent ? 'Urgent' : 'Not Urgent'} & ${isImportant ? 'Important' : 'Not Important'}`}>
+              {quadrantIcon}
+            </span>
             <p className="text-sm font-medium truncate">{task.title}</p>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {priorityInfo.label}
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <div
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: quadrantColor }}
+              title={`Quadrant: ${isUrgent && isImportant ? 'Do First' : !isUrgent && isImportant ? 'Schedule' : isUrgent && !isImportant ? 'Delegate' : 'Eliminate'}`}
+            />
+            <p className="text-xs text-muted-foreground">
+              {priorityInfo.label}
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -610,6 +732,59 @@ function DayCommandStation({
 }: DayCommandStationProps) {
   const [selectedSlot, setSelectedSlot] = useState<SelectedSlot | null>(null);
 
+  // Drag-to-Create State (with 5-minute precision)
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartHour, setDragStartHour] = useState<number | null>(null);
+  const [dragStartMinute, setDragStartMinute] = useState<number>(0);
+  const [dragEndHour, setDragEndHour] = useState<number | null>(null);
+  const [dragEndMinute, setDragEndMinute] = useState<number>(0);
+
+  // Time Cursor State (floating badge on left axis)
+  const [cursorVisible, setCursorVisible] = useState(false);
+  const [cursorTime, setCursorTime] = useState<string>("00:00");
+  const [cursorTop, setCursorTop] = useState<number>(0); // Percentage (0-100)
+  const timelineContainerRef = useRef<HTMLDivElement>(null);
+
+  // Drag-to-Create: Mouse Up Handler (wrapped in useCallback to avoid recreating on every render)
+  const handleMouseUp = useCallback(() => {
+    if (isDragging && dragStartHour !== null && dragEndHour !== null) {
+      // Calculate final start/end with minute precision (handle upward drag)
+      const startTotalMinutes = dragStartHour * 60 + dragStartMinute;
+      const endTotalMinutes = dragEndHour * 60 + dragEndMinute;
+
+      const finalStartMinutes = Math.min(startTotalMinutes, endTotalMinutes);
+      const finalEndMinutes = Math.max(startTotalMinutes, endTotalMinutes);
+
+      const finalStartHour = Math.floor(finalStartMinutes / 60);
+      const finalStartMin = finalStartMinutes % 60;
+      const finalEndHour = Math.floor(finalEndMinutes / 60);
+      const finalEndMin = finalEndMinutes % 60;
+
+      // Set selectedSlot with precise time range
+      setSelectedSlot({
+        hour: finalStartHour,
+        mode: "create",
+        startTime: `${finalStartHour.toString().padStart(2, "0")}:${finalStartMin.toString().padStart(2, "0")}`,
+        endTime: `${finalEndHour.toString().padStart(2, "0")}:${finalEndMin.toString().padStart(2, "0")}`,
+      });
+    }
+
+    // Reset drag state
+    setIsDragging(false);
+    setDragStartHour(null);
+    setDragStartMinute(0);
+    setDragEndHour(null);
+    setDragEndMinute(0);
+  }, [isDragging, dragStartHour, dragStartMinute, dragEndHour, dragEndMinute]);
+
+  // Attach mouseup listener to window (MUST be before early return!)
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener("mouseup", handleMouseUp);
+      return () => window.removeEventListener("mouseup", handleMouseUp);
+    }
+  }, [isDragging, handleMouseUp]);
+
   if (!date) return null;
 
   const dayEvents = events.filter((event) => {
@@ -687,20 +862,112 @@ function DayCommandStation({
     setSelectedSlot({ hour: eventHour, event, mode: "view" });
   };
 
-  const handleCreateEvent = async (title: string, hour: number) => {
+  // Global Mouse Move Handler (container-based tracking)
+  const handleGlobalMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!timelineContainerRef.current) return;
+
+    const container = timelineContainerRef.current;
+    const rect = container.getBoundingClientRect();
+    const offsetY = event.clientY - rect.top;
+    const containerHeight = rect.height;
+
+    // Calculate percentage (0-1)
+    const pct = Math.max(0, Math.min(1, offsetY / containerHeight));
+
+    // Calculate total minutes in 24 hours
+    const rawMinutes = pct * 24 * 60;
+
+    // Snap to 5-minute intervals
+    const snappedMinutes = Math.round(rawMinutes / 5) * 5;
+
+    // Convert back to HH:MM
+    const hours = Math.floor(snappedMinutes / 60);
+    const minutes = snappedMinutes % 60;
+    const timeString = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+
+    // Convert back to percentage for positioning
+    const topPercent = (snappedMinutes / (24 * 60)) * 100;
+
+    // Update cursor state
+    setCursorVisible(true);
+    setCursorTime(timeString);
+    setCursorTop(topPercent);
+
+    // If dragging, update drag end state
+    if (isDragging) {
+      setDragEndHour(hours);
+      setDragEndMinute(minutes);
+    }
+  };
+
+  const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (pendingTask || !timelineContainerRef.current) return;
+
+    const container = timelineContainerRef.current;
+    const rect = container.getBoundingClientRect();
+    const offsetY = event.clientY - rect.top;
+    const containerHeight = rect.height;
+
+    const pct = Math.max(0, Math.min(1, offsetY / containerHeight));
+    const rawMinutes = pct * 24 * 60;
+    const snappedMinutes = Math.round(rawMinutes / 5) * 5;
+    const hours = Math.floor(snappedMinutes / 60);
+    const minutes = snappedMinutes % 60;
+
+    setIsDragging(true);
+    setDragStartHour(hours);
+    setDragStartMinute(minutes);
+    setDragEndHour(hours);
+    setDragEndMinute(minutes);
+  };
+
+  // Check if hour is in drag selection range
+  const isHourInDragRange = (hour: number) => {
+    if (!isDragging || dragStartHour === null || dragEndHour === null) {
+      return false;
+    }
+    const min = Math.min(dragStartHour, dragEndHour);
+    const max = Math.max(dragStartHour, dragEndHour);
+    return hour >= min && hour <= max;
+  };
+
+  const handleCreateEvent = async (eventData: {
+    title: string;
+    description?: string;
+    location?: string;
+    startTime: string;
+    endTime: string;
+    allDay: boolean;
+    color: string;
+  }) => {
+    const [startHour, startMinute] = eventData.startTime.split(":").map(Number);
+    const [endHour, endMinute] = eventData.endTime.split(":").map(Number);
+
     let startDate = new Date(date);
-    startDate = setHours(startDate, hour);
-    startDate = setMinutes(startDate, 0);
+    startDate = setHours(startDate, startHour);
+    startDate = setMinutes(startDate, startMinute);
     startDate = setSeconds(startDate, 0);
 
-    const endDate = addHours(startDate, 1);
+    let endDate = new Date(date);
+    endDate = setHours(endDate, endHour);
+    endDate = setMinutes(endDate, endMinute);
+    endDate = setSeconds(endDate, 0);
+
+    // If end time is before start time, assume it's the next day
+    if (endDate <= startDate) {
+      endDate.setDate(endDate.getDate() + 1);
+    }
 
     await onAddEvent({
-      title,
+      title: eventData.title,
+      description: eventData.description,
+      location: eventData.location,
       start: startDate.toISOString(),
       end: endDate.toISOString(),
-      all_day: false,
-      background_color: "#3b82f6",
+      all_day: eventData.allDay,
+      background_color: eventData.color,
+      border_color: eventData.color,
+      text_color: "#ffffff",
       status: "active",
     });
 
@@ -714,74 +981,101 @@ function DayCommandStation({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[900px] p-0 gap-0">
-        {/* Header */}
-        <div className="px-6 py-4 border-b">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <DialogTitle className="text-lg font-semibold flex items-center gap-2">
-                <CalendarIcon className="h-5 w-5" />
+      <DialogContent className="sm:max-w-[900px] w-full h-[600px] flex flex-col p-0 overflow-hidden border-2 border-gray-300 shadow-2xl rounded-2xl">
+        {/* Hidden Title for Accessibility */}
+        <DialogTitle className="sr-only">{formattedDate}</DialogTitle>
+
+        {/* Main Layout - Flexbox 60/40 Split */}
+        <div className="flex h-full overflow-hidden">
+          {/* Left Panel - Timeline (60%) - FIXED HEIGHT, NO SCROLL */}
+          <div className="w-[60%] h-full flex flex-col border-r border-gray-200 overflow-hidden bg-gray-50/30 pl-8 pr-4">
+            {/* Timeline Header - Compact */}
+            <div className="bg-white border-b border-gray-100 py-3 flex-shrink-0">
+              <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4 text-gray-600" />
                 {formattedDate}
-              </DialogTitle>
-              {pendingTask ? (
-                <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
+              </h2>
+              {pendingTask && (
+                <div className="mt-1.5 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-blue-50 border border-blue-200">
                   <div
-                    className="w-2 h-2 rounded-full animate-pulse"
+                    className="w-1.5 h-1.5 rounded-full animate-pulse"
                     style={{ backgroundColor: pendingTask.color }}
                   />
-                  <p className="text-xs font-medium text-primary">
-                    Click a time slot to schedule: <span className="font-semibold">{pendingTask.title}</span>
+                  <p className="text-[10px] font-medium text-blue-700">
+                    Click a slot: <span className="font-semibold">{pendingTask.title}</span>
                   </p>
                 </div>
-              ) : (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {dayEvents.length} event{dayEvents.length !== 1 ? "s" : ""} scheduled
+              )}
+              {!pendingTask && (
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {dayEvents.length} event{dayEvents.length !== 1 ? "s" : ""}
                 </p>
               )}
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
+
+            {/* Timeline Slots - Flex-1 to fill remaining space */}
+            <div
+              ref={timelineContainerRef}
+              className="flex-1 flex flex-col relative"
+              onMouseMove={handleGlobalMouseMove}
+              onMouseDown={handleMouseDown}
+              onMouseLeave={() => setCursorVisible(false)}
+            >
+              {hours.map((hour) => {
+                const eventAtStart = getEventAtHour(hour);
+                const occupyingEvent = getOccupyingEvent(hour);
+                const isOccupied = isHourOccupied(hour);
+                const isInDragRange = isHourInDragRange(hour);
+
+                return (
+                  <TimelineSlot
+                    key={hour}
+                    hour={hour}
+                    eventAtStart={eventAtStart}
+                    occupyingEvent={occupyingEvent}
+                    isOccupied={isOccupied}
+                    isPendingMode={!!pendingTask}
+                    isInDragRange={isInDragRange}
+                    isDragging={isDragging}
+                    onSlotClick={() => handleSlotClick(hour)}
+                    onEventClick={handleEventClick}
+                  />
+                );
+              })}
+
+              {/* THE MOVING TIME CURSOR - Floating badge + crosshair line */}
+              {cursorVisible && !pendingTask && (
+                <div
+                  className="absolute left-0 w-full flex items-center pointer-events-none z-50"
+                  style={{ top: `${cursorTop}%` }}
+                >
+                  {/* The Moving Number Badge */}
+                  <div className="bg-indigo-600 text-white text-[10px] font-medium px-2 py-0.5 rounded-r w-12 text-center shadow-md">
+                    {cursorTime}
+                  </div>
+                  {/* The Crosshair Line */}
+                  <div className="h-px bg-indigo-600 w-full opacity-30" />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Split View */}
-        <div className="grid grid-cols-3 h-[60vh]">
-          {/* Timeline (Left - 2/3) */}
-          <div className="col-span-2 overflow-y-auto border-r">
-            {hours.map((hour) => {
-              const eventAtStart = getEventAtHour(hour);
-              const occupyingEvent = getOccupyingEvent(hour);
-              const isOccupied = isHourOccupied(hour);
-
-              return (
-                <TimelineSlot
-                  key={hour}
-                  hour={hour}
-                  eventAtStart={eventAtStart}
-                  occupyingEvent={occupyingEvent}
-                  isOccupied={isOccupied}
-                  isPendingMode={!!pendingTask}
-                  onSlotClick={() => handleSlotClick(hour)}
-                  onEventClick={handleEventClick}
+          {/* Right Panel - Form (40%) */}
+          <div className="w-[40%] bg-white h-full overflow-y-auto relative">
+            {/* Inner Content Wrapper with HEAVY Padding */}
+            <div className="p-8 pl-10 h-full flex flex-col">
+              {pendingTask ? (
+                <PendingTaskPanel pendingTask={pendingTask} />
+              ) : (
+                <ActionPanel
+                  selectedSlot={selectedSlot}
+                  date={date}
+                  onCreateEvent={handleCreateEvent}
+                  onDeleteEvent={handleDeleteEvent}
+                  onCancel={() => setSelectedSlot(null)}
                 />
-              );
-            })}
-          </div>
-
-          {/* Action Panel (Right - 1/3) */}
-          <div className="col-span-1 bg-muted/30 p-4">
-            {pendingTask ? (
-              <PendingTaskPanel pendingTask={pendingTask} />
-            ) : (
-              <ActionPanel
-                selectedSlot={selectedSlot}
-                date={date}
-                onCreateEvent={handleCreateEvent}
-                onDeleteEvent={handleDeleteEvent}
-                onCancel={() => setSelectedSlot(null)}
-              />
-            )}
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>
@@ -795,6 +1089,8 @@ interface TimelineSlotProps {
   occupyingEvent: any;
   isOccupied: boolean;
   isPendingMode: boolean;
+  isInDragRange: boolean;
+  isDragging: boolean;
   onSlotClick: () => void;
   onEventClick: (event: any) => void;
 }
@@ -805,60 +1101,82 @@ function TimelineSlot({
   occupyingEvent,
   isOccupied,
   isPendingMode,
+  isInDragRange,
+  isDragging,
   onSlotClick,
   onEventClick,
 }: TimelineSlotProps) {
   const timeLabel = `${hour.toString().padStart(2, "0")}:00`;
 
   return (
-    <div className="flex border-b last:border-b-0 h-10">
-      {/* Time Label */}
-      <div className="w-16 flex-shrink-0 px-2 py-2 border-r bg-muted/50">
-        <span className="text-xs font-medium text-muted-foreground">
+    <div className="flex-1 flex border-b last:border-b-0 min-h-0">
+      {/* Time Label - Compact */}
+      <div className="w-10 flex-shrink-0 flex items-center justify-center border-r bg-white/50">
+        <span className="text-[10px] font-medium text-gray-400">
           {timeLabel}
         </span>
       </div>
 
-      {/* Content */}
-      <div className="flex-1">
+      {/* Content - Fills remaining space */}
+      <div className="flex-1 relative min-h-0">
         {eventAtStart ? (
-          // Event starts here
+          // Event starts here - Ultra compact
           <button
             onClick={() => onEventClick(eventAtStart)}
-            className="w-full h-full px-2 py-1 text-left border-l-4 hover:bg-accent/50 transition-colors"
+            className="w-full h-full px-1.5 py-0.5 text-left border-l-2 hover:bg-white transition-colors flex flex-col justify-center"
             style={{ borderLeftColor: eventAtStart.backgroundColor || "#3b82f6" }}
           >
-            <p className="text-xs font-medium truncate">{eventAtStart.title}</p>
-            <p className="text-[10px] text-muted-foreground">
-              {formatDate(new Date(eventAtStart.start), "HH:mm")} -{" "}
-              {formatDate(new Date(eventAtStart.end), "HH:mm")}
+            <p className="text-[10px] font-medium truncate leading-tight">{eventAtStart.title}</p>
+            <p className="text-[9px] text-muted-foreground leading-tight">
+              {formatDate(new Date(eventAtStart.start), "HH:mm")}
             </p>
           </button>
         ) : occupyingEvent ? (
           // Middle of multi-hour event (ghost block)
           <div
-            className="w-full h-full border-l-4 opacity-30"
+            className="w-full h-full border-l-2 opacity-20"
             style={{
               borderLeftColor: occupyingEvent.backgroundColor || "#3b82f6",
               backgroundColor: occupyingEvent.backgroundColor || "#3b82f6"
             }}
           />
         ) : (
-          // Empty slot
+          // Empty slot - Compact hover state + Drag-to-Create (5-min precision, global tracking)
           <button
             onClick={onSlotClick}
-            className={`w-full h-full px-2 py-1 text-left group transition-colors ${
-              isPendingMode
-                ? "hover:bg-primary/10 hover:border-l-2 hover:border-primary"
-                : "hover:bg-accent/50"
-            }`}
+            className={`w-full h-full px-1.5 text-left group transition-all flex items-center relative ${
+              isInDragRange
+                ? "bg-blue-100 border-l-4 border-blue-500"
+                : isPendingMode
+                ? "hover:bg-blue-50 hover:border-l-2 hover:border-primary"
+                : "hover:bg-white"
+            } ${isDragging ? "cursor-ns-resize select-none" : "cursor-pointer"}`}
           >
-            <div className={`flex items-center gap-1 transition-opacity ${
-              isPendingMode ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            {isInDragRange && (
+              <div className="absolute inset-0 bg-blue-500/10 pointer-events-none" />
+            )}
+            <div className={`flex items-center gap-0.5 transition-opacity ${
+              isInDragRange
+                ? "opacity-100"
+                : isPendingMode
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100"
             }`}>
-              <Plus className={`h-3 w-3 ${isPendingMode ? "text-primary" : "text-muted-foreground"}`} />
-              <span className={`text-[10px] ${isPendingMode ? "text-primary font-medium" : "text-muted-foreground"}`}>
-                {isPendingMode ? "Place here" : "Add"}
+              <Plus className={`h-2.5 w-2.5 ${
+                isInDragRange
+                  ? "text-blue-600"
+                  : isPendingMode
+                  ? "text-primary"
+                  : "text-muted-foreground"
+              }`} />
+              <span className={`text-[9px] ${
+                isInDragRange
+                  ? "text-blue-600 font-medium"
+                  : isPendingMode
+                  ? "text-primary font-medium"
+                  : "text-muted-foreground"
+              }`}>
+                {isInDragRange ? "Selected" : isPendingMode ? "Place" : "Add"}
               </span>
             </div>
           </button>
@@ -907,7 +1225,15 @@ function PendingTaskPanel({ pendingTask }: PendingTaskPanelProps) {
 interface ActionPanelProps {
   selectedSlot: SelectedSlot | null;
   date: Date;
-  onCreateEvent: (title: string, hour: number) => Promise<void>;
+  onCreateEvent: (eventData: {
+    title: string;
+    description?: string;
+    location?: string;
+    startTime: string;
+    endTime: string;
+    allDay: boolean;
+    color: string;
+  }) => Promise<void>;
   onDeleteEvent: (eventId: string) => Promise<void>;
   onCancel: () => void;
 }
@@ -919,141 +1245,132 @@ function ActionPanel({
   onDeleteEvent,
   onCancel,
 }: ActionPanelProps) {
+  const [tabType, setTabType] = useState<"event" | "task">("event");
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("");
+  const [allDay, setAllDay] = useState(false);
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [selectedColor, setSelectedColor] = useState(EVENT_COLORS[0].value);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (selectedSlot?.mode === "view" && selectedSlot.event) {
       setTitle(selectedSlot.event.title);
-    } else {
+      setDescription(selectedSlot.event.extendedProps?.description || "");
+      setLocation(selectedSlot.event.extendedProps?.location || "");
+      setSelectedColor(selectedSlot.event.backgroundColor || EVENT_COLORS[0].value);
+      const start = new Date(selectedSlot.event.start);
+      const end = new Date(selectedSlot.event.end);
+      setStartTime(formatDate(start, "HH:mm"));
+      setEndTime(formatDate(end, "HH:mm"));
+      setAllDay(selectedSlot.event.allDay || false);
+    } else if (selectedSlot) {
       setTitle("");
+      setDescription("");
+      setLocation("");
+      setAllDay(false);
+
+      // Use drag-to-create times if available, otherwise default to hour + 1
+      if (selectedSlot.startTime && selectedSlot.endTime) {
+        setStartTime(selectedSlot.startTime);
+        setEndTime(selectedSlot.endTime);
+      } else {
+        const hour = selectedSlot.hour;
+        setStartTime(`${hour.toString().padStart(2, "0")}:00`);
+        setEndTime(`${(hour + 1).toString().padStart(2, "0")}:00`);
+      }
+
+      setSelectedColor(EVENT_COLORS[0].value);
     }
   }, [selectedSlot]);
 
   if (!selectedSlot) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center">
-        <CalendarIcon className="h-12 w-12 text-muted-foreground/30 mb-3" />
-        <p className="text-sm text-muted-foreground">
-          Select a time slot to schedule
+        <CalendarIcon className="h-16 w-16 text-gray-300 mb-4" />
+        <p className="text-base text-gray-500 font-light">
+          Seleziona uno slot per iniziare
         </p>
       </div>
     );
   }
 
-  const timeLabel = `${selectedSlot.hour.toString().padStart(2, "0")}:00`;
-
   if (selectedSlot.mode === "view" && selectedSlot.event) {
-    // Event details view
+    // Event details view - Minimalist design
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm">Event Details</h3>
-          <Button variant="ghost" size="icon" onClick={onCancel}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="space-y-3">
+      <div className="h-full flex flex-col space-y-6">
+        <div className="flex-1 space-y-5 overflow-y-auto">
+          {/* Title - Large and clean */}
           <div>
-            <Label className="text-xs text-muted-foreground">Title</Label>
-            <p className="text-sm font-medium mt-1">{selectedSlot.event.title}</p>
+            <p className="text-2xl font-medium">{selectedSlot.event.title}</p>
           </div>
 
-          <div>
-            <Label className="text-xs text-muted-foreground">Time</Label>
-            <p className="text-sm mt-1">
+          {/* Time */}
+          <div className="flex items-center gap-3 text-muted-foreground">
+            <Clock className="h-5 w-5" />
+            <p className="text-sm">
               {formatDate(new Date(selectedSlot.event.start), "HH:mm")} -{" "}
               {formatDate(new Date(selectedSlot.event.end), "HH:mm")}
             </p>
           </div>
 
+          {/* Description */}
           {selectedSlot.event.extendedProps?.description && (
-            <div>
-              <Label className="text-xs text-muted-foreground">Description</Label>
-              <p className="text-sm mt-1 text-muted-foreground">
-                {selectedSlot.event.extendedProps.description}
-              </p>
+            <div className="flex items-start gap-3 text-muted-foreground">
+              <AlignLeft className="h-5 w-5 mt-0.5" />
+              <p className="text-sm">{selectedSlot.event.extendedProps.description}</p>
+            </div>
+          )}
+
+          {/* Location */}
+          {selectedSlot.event.extendedProps?.location && (
+            <div className="flex items-center gap-3 text-muted-foreground">
+              <MapPin className="h-5 w-5" />
+              <p className="text-sm">{selectedSlot.event.extendedProps.location}</p>
             </div>
           )}
         </div>
 
+        {/* Delete button */}
         <Button
-          variant="destructive"
+          variant="ghost"
           size="sm"
-          className="w-full"
+          className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
           onClick={() => handleDeleteEvent(selectedSlot.event.id)}
           disabled={isSubmitting}
         >
           <Trash2 className="h-4 w-4 mr-2" />
-          Delete Event
+          Elimina evento
         </Button>
       </div>
     );
   }
 
-  // Create event form
+  // Create form
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
     setIsSubmitting(true);
     try {
-      await onCreateEvent(title.trim(), selectedSlot.hour);
+      // For now, create as event regardless of tab
+      // TODO: Implement task creation when task hook is available
+      await onCreateEvent({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        location: location.trim() || undefined,
+        startTime,
+        endTime,
+        allDay,
+        color: selectedColor,
+      });
+      onCancel();
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e as any);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm">New Event @ {timeLabel}</h3>
-        <Button variant="ghost" size="icon" onClick={onCancel}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div>
-          <Label htmlFor="event-title" className="text-xs text-muted-foreground">
-            Event Title
-          </Label>
-          <Input
-            id="event-title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Meeting, Task, etc."
-            className="mt-1"
-            autoFocus
-            disabled={isSubmitting}
-          />
-        </div>
-
-        <div className="rounded-lg bg-muted p-2">
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium">Time:</span> {timeLabel} -{" "}
-            {`${(selectedSlot.hour + 1).toString().padStart(2, "0")}:00`}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            <span className="font-medium">Duration:</span> 1 hour
-          </p>
-        </div>
-
-        <Button type="submit" className="w-full" disabled={!title.trim() || isSubmitting}>
-          {isSubmitting ? "Creating..." : "Create Event"}
-        </Button>
-      </form>
-    </div>
-  );
 
   async function handleDeleteEvent(eventId: string) {
     setIsSubmitting(true);
@@ -1063,6 +1380,183 @@ function ActionPanel({
       setIsSubmitting(false);
     }
   }
+
+  return (
+    <form onSubmit={handleSubmit} className="h-full flex flex-col">
+      {/* Tabs Header - Clean & Professional */}
+      <Tabs value={tabType} onValueChange={(v) => setTabType(v as "event" | "task")} className="w-full flex-1 flex flex-col">
+        <TabsList className="grid w-full grid-cols-2 bg-transparent border-b rounded-none h-auto p-0">
+          <TabsTrigger
+            value="event"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none rounded-none py-3 font-medium text-sm"
+          >
+            <CalendarIcon className="h-4 w-4 mr-2" />
+            Eventi
+          </TabsTrigger>
+          <TabsTrigger
+            value="task"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-green-600 data-[state=active]:border-b-2 data-[state=active]:border-green-600 data-[state=active]:shadow-none rounded-none py-3 font-medium text-sm"
+          >
+            <CheckSquare className="h-4 w-4 mr-2" />
+            Attività
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={tabType} className="flex-1 overflow-y-auto mt-0 data-[state=active]:flex data-[state=active]:flex-col">
+          {/* Title Input - Large & Clean */}
+          <div className="pt-6 pb-4">
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Aggiungi titolo"
+              className="text-2xl font-medium border-0 bg-transparent p-0 h-auto focus-visible:ring-0 placeholder:text-gray-300"
+              autoFocus
+              disabled={isSubmitting}
+            />
+          </div>
+
+          {/* Divider */}
+          <div className="border-t my-2" />
+
+          {/* Time Section */}
+          <div className="py-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 flex justify-center flex-shrink-0">
+                <Clock className="h-5 w-5 text-gray-500" />
+              </div>
+              <div className="flex-1 flex items-center gap-2">
+                <Input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="flex-1 text-sm border-0 bg-gray-50 hover:bg-gray-100 focus-visible:ring-0 focus-visible:bg-gray-100 rounded-lg px-3 py-2.5 transition-colors font-medium"
+                  disabled={allDay || isSubmitting}
+                />
+                <span className="text-gray-400 font-medium">—</span>
+                <Input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="flex-1 text-sm border-0 bg-gray-50 hover:bg-gray-100 focus-visible:ring-0 focus-visible:bg-gray-100 rounded-lg px-3 py-2.5 transition-colors font-medium"
+                  disabled={allDay || isSubmitting}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 ml-8">
+              <Checkbox
+                id="all-day"
+                checked={allDay}
+                onCheckedChange={(checked) => setAllDay(checked as boolean)}
+                disabled={isSubmitting}
+                className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+              />
+              <Label htmlFor="all-day" className="text-sm cursor-pointer text-gray-700 font-normal">
+                Tutto il giorno
+              </Label>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t my-2" />
+
+          {/* Details Section */}
+          <div className="py-4 space-y-4">
+            {/* Description */}
+            <div className="flex items-start gap-3">
+              <div className="w-8 flex justify-center flex-shrink-0 pt-3">
+                <AlignLeft className="h-5 w-5 text-gray-500" />
+              </div>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Aggiungi descrizione"
+                className="flex-1 min-h-[90px] resize-none border-0 bg-gray-50 hover:bg-gray-100 focus-visible:ring-0 focus-visible:bg-gray-100 rounded-lg px-3 py-2.5 transition-colors placeholder:text-gray-400 text-sm"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            {/* Location */}
+            <div className="flex items-center gap-3">
+              <div className="w-8 flex justify-center flex-shrink-0">
+                <MapPin className="h-5 w-5 text-gray-500" />
+              </div>
+              <Input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Aggiungi luogo"
+                className="flex-1 border-0 bg-gray-50 hover:bg-gray-100 focus-visible:ring-0 focus-visible:bg-gray-100 rounded-lg px-3 py-2.5 transition-colors placeholder:text-gray-400 text-sm"
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t my-2" />
+
+          {/* Color Picker Section */}
+          <div className="py-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs font-medium text-gray-600 mb-3">Colore</p>
+                <div className="flex gap-2.5 flex-wrap">
+                  {EVENT_COLORS.map((color) => (
+                    <button
+                      key={color.value}
+                      type="button"
+                      onClick={() => setSelectedColor(color.value)}
+                      className={`w-10 h-10 rounded-full transition-all ${
+                        selectedColor === color.value
+                          ? "ring-2 ring-offset-2 scale-105 shadow-md"
+                          : "hover:scale-105 opacity-90 hover:opacity-100 shadow-sm"
+                      }`}
+                      style={{
+                        backgroundColor: color.value,
+                        ringColor: selectedColor === color.value ? color.value : undefined
+                      }}
+                      title={color.name}
+                      disabled={isSubmitting}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Spacer to push buttons to bottom */}
+          <div className="flex-1 min-h-4" />
+        </TabsContent>
+      </Tabs>
+
+      {/* Action Buttons - Professional */}
+      <div className="flex justify-between items-center gap-3 pt-4 pb-2 border-t bg-white/50">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onCancel}
+          disabled={isSubmitting}
+          className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-4"
+        >
+          Annulla
+        </Button>
+        <Button
+          type="submit"
+          disabled={!title.trim() || isSubmitting}
+          className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm px-6"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Salvataggio...
+            </>
+          ) : (
+            "Salva"
+          )}
+        </Button>
+      </div>
+    </form>
+  );
 }
 
 // Helper functions

@@ -122,6 +122,8 @@ export function useTasks(): UseTasksReturn {
           is_completed: taskData.is_completed ?? false,
           priority: taskData.priority ?? "medium",
           due_date: taskData.due_date ?? null,
+          is_urgent: taskData.is_urgent ?? false,
+          is_important: taskData.is_important ?? false,
           user_id: taskData.user_id ?? null,
         };
 
@@ -168,6 +170,8 @@ export function useTasks(): UseTasksReturn {
         if (taskData.is_completed !== undefined) updateData.is_completed = taskData.is_completed;
         if (taskData.priority !== undefined) updateData.priority = taskData.priority;
         if (taskData.due_date !== undefined) updateData.due_date = taskData.due_date;
+        if (taskData.is_urgent !== undefined) updateData.is_urgent = taskData.is_urgent;
+        if (taskData.is_important !== undefined) updateData.is_important = taskData.is_important;
 
         const { data, error: updateError } = await supabase
           .from("tasks")

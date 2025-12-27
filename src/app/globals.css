@@ -245,14 +245,47 @@
   @apply rounded-md;
 }
 
-/* Now indicator */
+/* Now Indicator - Google Calendar Style (Thin Red Line + Red Arrow) */
 .fc .fc-timegrid-now-indicator-line {
-  @apply border-primary;
-  border-width: 2px;
+  border-color: #ef4444 !important; /* Tailwind red-500 */
+  border-width: 2px 0 0 0 !important; /* Thin top border only */
+  z-index: 10 !important; /* Above grid lines */
 }
 
 .fc .fc-timegrid-now-indicator-arrow {
-  @apply border-primary;
+  border-color: #ef4444 !important; /* Red arrow */
+  border-width: 5px 0 5px 6px !important; /* Arrow shape */
+  background-color: transparent !important;
+}
+
+.fc .fc-timegrid-now-indicator-arrow::before {
+  content: '';
+  display: block;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 5px 0 5px 6px;
+  border-color: transparent transparent transparent #ef4444;
+}
+
+/* Grid Lines - Subtle Gray (Google Calendar Style) */
+.fc .fc-timegrid-slot,
+.fc .fc-timegrid-slot-lane {
+  border-color: #f3f4f6 !important; /* gray-100 for subtle lines */
+}
+
+.fc .fc-timegrid-divider {
+  border-color: #e5e7eb !important; /* gray-200 for stronger dividers */
+}
+
+.fc-theme-standard td,
+.fc-theme-standard th {
+  border-color: #f3f4f6 !important; /* gray-100 */
+}
+
+/* Make major hour lines slightly darker */
+.fc .fc-timegrid-slot[data-time]:not([data-time*=":30"]) {
+  border-top-color: #e5e7eb !important; /* gray-200 for hour boundaries */
 }
 
 /* Scrollbars */

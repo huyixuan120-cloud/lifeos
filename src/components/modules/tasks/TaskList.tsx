@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, KeyboardEvent } from "react";
-import { Plus } from "lucide-react";
+import { Plus, ListPlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { TaskItem } from "./TaskItem";
+import { TaskCreateDialog } from "./TaskCreateDialog";
 import type { LifeOSTask, CreateTaskInput } from "@/types/tasks";
 
 interface TaskListProps {
@@ -12,6 +13,7 @@ interface TaskListProps {
   onAdd: (taskData: CreateTaskInput) => Promise<void>;
   onToggle: (id: string, isCompleted: boolean) => void;
   onDelete: (id: string) => void;
+  onEdit?: (task: LifeOSTask) => void;
 }
 
 /**
@@ -32,7 +34,7 @@ interface TaskListProps {
  * />
  * ```
  */
-export function TaskList({ tasks, onAdd, onToggle, onDelete }: TaskListProps) {
+export function TaskList({ tasks, onAdd, onToggle, onDelete, onEdit }: TaskListProps) {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [isAdding, setIsAdding] = useState(false);
 
@@ -64,11 +66,12 @@ export function TaskList({ tasks, onAdd, onToggle, onDelete }: TaskListProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Input Area */}
-      <div className="p-4 border-b">
+      <div className="p-4 border-b space-y-3">
+        {/* Quick Add Input */}
         <div className="flex items-center gap-2">
           <Input
             type="text"
-            placeholder="Add a new task..."
+            placeholder="Quick add task (press Enter)..."
             value={newTaskTitle}
             onChange={(e) => setNewTaskTitle(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -79,10 +82,22 @@ export function TaskList({ tasks, onAdd, onToggle, onDelete }: TaskListProps) {
             onClick={handleAddTask}
             disabled={!newTaskTitle.trim() || isAdding}
             size="icon"
+            variant="ghost"
           >
             <Plus className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Advanced Create Dialog */}
+        <TaskCreateDialog
+          onAdd={onAdd}
+          trigger={
+            <Button variant="outline" className="w-full gap-2" size="sm">
+              <ListPlus className="h-4 w-4" />
+              Advanced Task (Urgent/Important)
+            </Button>
+          }
+        />
       </div>
 
       {/* Task List */}
@@ -101,6 +116,7 @@ export function TaskList({ tasks, onAdd, onToggle, onDelete }: TaskListProps) {
                 task={task}
                 onToggle={onToggle}
                 onDelete={onDelete}
+                onEdit={onEdit}
               />
             ))}
           </div>

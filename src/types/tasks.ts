@@ -46,6 +46,18 @@ export interface LifeOSTask {
   due_date?: string | null;
 
   /**
+   * Whether the task is urgent (Eisenhower Matrix)
+   * Default: false
+   */
+  is_urgent?: boolean;
+
+  /**
+   * Whether the task is important (Eisenhower Matrix)
+   * Default: false
+   */
+  is_important?: boolean;
+
+  /**
    * User ID of the task owner (for future multi-user support)
    * Currently optional, will be required when auth is implemented
    */
@@ -73,6 +85,8 @@ export interface CreateTaskInput {
   is_completed?: boolean;
   priority?: TaskPriority;
   due_date?: string | null;
+  is_urgent?: boolean;
+  is_important?: boolean;
   user_id?: string | null;
 }
 
@@ -86,6 +100,8 @@ export interface UpdateTaskInput {
   is_completed?: boolean;
   priority?: TaskPriority;
   due_date?: string | null;
+  is_urgent?: boolean;
+  is_important?: boolean;
 }
 
 /**

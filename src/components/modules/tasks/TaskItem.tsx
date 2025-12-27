@@ -10,6 +10,7 @@ interface TaskItemProps {
   task: LifeOSTask;
   onToggle: (id: string, isCompleted: boolean) => void;
   onDelete: (id: string) => void;
+  onEdit?: (task: LifeOSTask) => void;
 }
 
 /**
@@ -30,7 +31,7 @@ interface TaskItemProps {
  * />
  * ```
  */
-export function TaskItem({ task, onToggle, onDelete }: TaskItemProps) {
+export function TaskItem({ task, onToggle, onDelete, onEdit }: TaskItemProps) {
   const priorityInfo = PRIORITY_COLORS[task.priority as TaskPriority];
 
   return (
@@ -52,17 +53,17 @@ export function TaskItem({ task, onToggle, onDelete }: TaskItemProps) {
           title={priorityInfo.label}
         />
 
-        {/* Title */}
-        <label
-          htmlFor={task.id}
-          className={`flex-1 text-sm cursor-pointer select-none ${
+        {/* Title - Clickable for editing */}
+        <span
+          onClick={() => onEdit?.(task)}
+          className={`flex-1 text-sm select-none ${
             task.is_completed
               ? "line-through text-muted-foreground"
               : "text-foreground"
-          }`}
+          } ${onEdit ? "cursor-pointer hover:text-blue-600 hover:underline" : ""}`}
         >
           {task.title}
-        </label>
+        </span>
       </div>
 
       {/* Delete Button (visible on hover) */}
