@@ -32,8 +32,8 @@ export default function TasksPage() {
   };
 
   // Wrapper for creating task (Matrix view passes different structure)
-  const handleCreateTask = (taskData: any) => {
-    addTask({
+  const handleCreateTask = async (taskData: any) => {
+    await addTask({
       title: taskData.title,
       priority: taskData.priority ?? "medium",
       is_urgent: taskData.is_urgent ?? false,
@@ -45,8 +45,8 @@ export default function TasksPage() {
   };
 
   // Wrapper for adding task (from TaskList)
-  const handleAddTask = (taskData: any) => {
-    addTask({
+  const handleAddTask = async (taskData: any) => {
+    await addTask({
       title: taskData.title,
       priority: taskData.priority ?? "medium",
       is_urgent: taskData.is_urgent ?? false,
@@ -76,10 +76,10 @@ export default function TasksPage() {
   };
 
   // Edit Submit Handler - Updates task with new data
-  const handleEditSubmit = (taskData: any) => {
+  const handleEditSubmit = async (taskData: any) => {
     if (!editingTask) return;
 
-    updateTask(editingTask.id, {
+    await updateTask(editingTask.id, {
       title: taskData.title,
       priority: taskData.priority,
       is_urgent: taskData.is_urgent,
