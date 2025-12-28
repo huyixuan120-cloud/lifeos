@@ -73,7 +73,7 @@ export function useTasks(): UseTasksReturn {
   }, [supabase]);
 
   /**
-   * Fetches all tasks from Supabase (filtered by logged-in user)
+   * Fetches all tasks from Supabase (filtered by logged-in user) or localStorage
    */
   const fetchTasks = useCallback(async () => {
     try {
@@ -82,8 +82,20 @@ export function useTasks(): UseTasksReturn {
 
       // Check if user is authenticated
       if (!user) {
-        console.log("⚠️ No authenticated user - skipping task fetch");
-        setTasks([]);
+        console.log("⚠️ No authenticated user - using localStorage fallback");
+        // Load from localStorage instead
+        const storedTasks = localStorage.getItem("lifeos_tasks");
+        if (storedTasks) {
+          try {
+            const parsed = JSON.parse(storedTasks);
+            setTasks(parsed);
+          } catch (e) {
+            console.error("Failed to parse localStorage tasks:", e);
+            setTasks([]);
+          }
+        } else {
+          setTasks([]);
+        }
         setIsLoading(false);
         return;
       }
@@ -154,7 +166,7 @@ export function useTasks(): UseTasksReturn {
   }, [supabase, user]);
 
   /**
-   * Adds a new task to Supabase
+   * Adds a new task to Supabase or localStorage
    *
    * @param taskData - The task data to insert
    */
@@ -165,8 +177,27 @@ export function useTasks(): UseTasksReturn {
 
         // Check if user is authenticated
         if (!user) {
-          console.error("❌ Not authenticated");
-          throw new Error("Not authenticated. Please sign in to add tasks.");
+          console.log("⚠️ Not authenticated - using localStorage fallback");
+          // Save to localStorage instead
+          const newTask: LifeOSTask = {
+            id: `local_${Date.now()}`,
+            user_id: "local",
+            title: taskData.title,
+            is_completed: taskData.is_completed ?? false,
+            priority: taskData.priority ?? "medium",
+            due_date: taskData.due_date ?? null,
+            is_urgent: taskData.is_urgent ?? false,
+            is_important: taskData.is_important ?? false,
+            goal_id: taskData.goal_id ?? null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+
+          const currentTasks = [...tasks, newTask];
+          setTasks(currentTasks);
+          localStorage.setItem("lifeos_tasks", JSON.stringify(currentTasks));
+          console.log("✅ Task saved to localStorage");
+          return;
         }
 
         // Debug logging
@@ -228,7 +259,7 @@ export function useTasks(): UseTasksReturn {
   );
 
   /**
-   * Updates an existing task in Supabase
+   * Updates an existing task in Supabase or localStorage
    *
    * @param taskData - The task data to update (must include id)
    */
@@ -236,6 +267,30 @@ export function useTasks(): UseTasksReturn {
     async (taskData: UpdateTaskInput) => {
       try {
         setError(null);
+
+        // If not authenticated, use localStorage
+        if (!user) {
+          const updatedTasks = tasks.map((task) => {
+            if (task.id === taskData.id) {
+              return {
+                ...task,
+                ...(taskData.title !== undefined && { title: taskData.title }),
+                ...(taskData.is_completed !== undefined && { is_completed: taskData.is_completed }),
+                ...(taskData.priority !== undefined && { priority: taskData.priority }),
+                ...(taskData.due_date !== undefined && { due_date: taskData.due_date }),
+                ...(taskData.is_urgent !== undefined && { is_urgent: taskData.is_urgent }),
+                ...(taskData.is_important !== undefined && { is_important: taskData.is_important }),
+                ...(taskData.goal_id !== undefined && { goal_id: taskData.goal_id }),
+                updated_at: new Date().toISOString(),
+              };
+            }
+            return task;
+          });
+          setTasks(updatedTasks);
+          localStorage.setItem("lifeos_tasks", JSON.stringify(updatedTasks));
+          console.log("✅ Task updated in localStorage");
+          return;
+        }
 
         // Prepare update data (only include provided fields)
         const updateData: any = {};
@@ -274,7 +329,7 @@ export function useTasks(): UseTasksReturn {
         throw err;
       }
     },
-    [supabase]
+    [supabase, user, tasks]
   );
 
   /**
@@ -287,6 +342,19 @@ export function useTasks(): UseTasksReturn {
     async (id: string, isCompleted: boolean) => {
       try {
         setError(null);
+
+        // If not authenticated, use localStorage
+        if (!user) {
+          const updatedTasks = tasks.map((task) =>
+            task.id === id
+              ? { ...task, is_completed: isCompleted, updated_at: new Date().toISOString() }
+              : task
+          );
+          setTasks(updatedTasks);
+          localStorage.setItem("lifeos_tasks", JSON.stringify(updatedTasks));
+          console.log("✅ Task toggled in localStorage");
+          return;
+        }
 
         const { data, error: updateError } = await supabase
           .from("tasks")
@@ -315,11 +383,11 @@ export function useTasks(): UseTasksReturn {
         throw err;
       }
     },
-    [supabase]
+    [supabase, user, tasks]
   );
 
   /**
-   * Deletes a task from Supabase
+   * Deletes a task from Supabase or localStorage
    *
    * @param id - The task ID to delete
    */
@@ -327,6 +395,15 @@ export function useTasks(): UseTasksReturn {
     async (id: string) => {
       try {
         setError(null);
+
+        // If not authenticated, use localStorage
+        if (!user) {
+          const updatedTasks = tasks.filter((task) => task.id !== id);
+          setTasks(updatedTasks);
+          localStorage.setItem("lifeos_tasks", JSON.stringify(updatedTasks));
+          console.log("✅ Task deleted from localStorage");
+          return;
+        }
 
         const { error: deleteError } = await supabase
           .from("tasks")
@@ -349,7 +426,7 @@ export function useTasks(): UseTasksReturn {
         throw err;
       }
     },
-    [supabase]
+    [supabase, user, tasks]
   );
 
   // Fetch tasks on mount

@@ -87,7 +87,7 @@ export function useGoals(): UseGoalsReturn {
   }, [supabase]);
 
   /**
-   * Fetches all goals for the current user
+   * Fetches all goals for the current user or from localStorage
    */
   const fetchGoals = useCallback(async () => {
     try {
@@ -96,8 +96,20 @@ export function useGoals(): UseGoalsReturn {
 
       // Check if user is authenticated
       if (!user) {
-        console.log("⚠️ No authenticated user - skipping goal fetch");
-        setGoals([]);
+        console.log("⚠️ No authenticated user - using localStorage fallback");
+        // Load from localStorage instead
+        const storedGoals = localStorage.getItem("lifeos_goals");
+        if (storedGoals) {
+          try {
+            const parsed = JSON.parse(storedGoals);
+            setGoals(parsed);
+          } catch (e) {
+            console.error("Failed to parse localStorage goals:", e);
+            setGoals([]);
+          }
+        } else {
+          setGoals([]);
+        }
         setIsLoading(false);
         return;
       }
@@ -171,7 +183,7 @@ export function useGoals(): UseGoalsReturn {
   }, [supabase, user]);
 
   /**
-   * Adds a new goal
+   * Adds a new goal to Supabase or localStorage
    */
   const addGoal = useCallback(
     async (goalData: CreateGoalInput) => {
@@ -182,8 +194,28 @@ export function useGoals(): UseGoalsReturn {
 
         // Check if user is authenticated
         if (!user) {
-          console.error("❌ Not authenticated");
-          throw new Error("Not authenticated. Please sign in to add goals.");
+          console.log("⚠️ Not authenticated - using localStorage fallback");
+          // Save to localStorage instead
+          const newGoal: Goal = {
+            id: `local_${Date.now()}`,
+            title: goalData.title,
+            category: goalData.category,
+            status: "on-track",
+            why: goalData.why || "",
+            targetDate: goalData.targetDate || null,
+            linkedTaskIds: [],
+            progress: 0,
+            totalTasks: 0,
+            completedTasks: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          const currentGoals = [...goals, newGoal];
+          setGoals(currentGoals);
+          localStorage.setItem("lifeos_goals", JSON.stringify(currentGoals));
+          console.log("✅ Goal saved to localStorage");
+          return;
         }
 
         console.log("📤 Inserting goal with Supabase Auth user:", user.id);
@@ -223,16 +255,41 @@ export function useGoals(): UseGoalsReturn {
         throw err;
       }
     },
-    [supabase, user, fetchGoals]
+    [supabase, user, goals, fetchGoals]
   );
 
   /**
-   * Updates an existing goal
+   * Updates an existing goal in Supabase or localStorage
    */
   const updateGoal = useCallback(
     async (goalData: UpdateGoalInput) => {
       try {
         const { id, ...updates } = goalData;
+
+        // If not authenticated, use localStorage
+        if (!user) {
+          const updatedGoals = goals.map((goal) => {
+            if (goal.id === id) {
+              return {
+                ...goal,
+                ...(updates.title !== undefined && { title: updates.title }),
+                ...(updates.category !== undefined && { category: updates.category }),
+                ...(updates.status !== undefined && { status: updates.status }),
+                ...(updates.progress !== undefined && { progress: updates.progress }),
+                ...(updates.why !== undefined && { why: updates.why }),
+                ...(updates.targetDate !== undefined && { targetDate: updates.targetDate }),
+                ...(updates.totalTasks !== undefined && { totalTasks: updates.totalTasks }),
+                ...(updates.completedTasks !== undefined && { completedTasks: updates.completedTasks }),
+                updatedAt: new Date().toISOString(),
+              };
+            }
+            return goal;
+          });
+          setGoals(updatedGoals);
+          localStorage.setItem("lifeos_goals", JSON.stringify(updatedGoals));
+          console.log("✅ Goal updated in localStorage");
+          return;
+        }
 
         // Map field names to database columns
         const dbUpdates: any = {};
@@ -262,15 +319,24 @@ export function useGoals(): UseGoalsReturn {
         throw err;
       }
     },
-    [supabase, fetchGoals]
+    [supabase, user, goals, fetchGoals]
   );
 
   /**
-   * Deletes a goal
+   * Deletes a goal from Supabase or localStorage
    */
   const deleteGoal = useCallback(
     async (id: string) => {
       try {
+        // If not authenticated, use localStorage
+        if (!user) {
+          const updatedGoals = goals.filter((goal) => goal.id !== id);
+          setGoals(updatedGoals);
+          localStorage.setItem("lifeos_goals", JSON.stringify(updatedGoals));
+          console.log("✅ Goal deleted from localStorage");
+          return;
+        }
+
         const { error: deleteError } = await supabase
           .from("goals")
           .delete()
@@ -288,7 +354,7 @@ export function useGoals(): UseGoalsReturn {
         throw err;
       }
     },
-    [supabase, fetchGoals]
+    [supabase, user, goals, fetchGoals]
   );
 
   // Fetch goals on mount
