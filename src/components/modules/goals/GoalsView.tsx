@@ -46,6 +46,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { useGoals } from "@/hooks/use-goals";
+import { useTasks } from "@/hooks/use-tasks";
 import type { GoalCategory, GoalStatus, Goal } from "@/types";
 
 const categoryConfig: Record<GoalCategory, { icon: React.ElementType; label: string; color: string }> = {
@@ -66,9 +67,32 @@ const statusConfig: Record<GoalStatus, { label: string; color: string; icon: Rea
 export function GoalsView() {
   // Get real goals data from Supabase (with RLS)
   const { goals, isLoading, addGoal, updateGoal, deleteGoal, fetchGoals } = useGoals();
+  const { tasks } = useTasks(); // Get tasks to calculate goal progress
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
+  const [goalsWithTaskCounts, setGoalsWithTaskCounts] = useState<Goal[]>([]);
+
+  // Calculate task counts for each goal
+  useEffect(() => {
+    const updatedGoals = goals.map((goal) => {
+      // Count tasks linked to this goal
+      const linkedTasks = tasks.filter((task) => task.goal_id === goal.id);
+      const totalTasks = linkedTasks.length;
+      const completedTasks = linkedTasks.filter((task) => task.is_completed).length;
+      const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+      return {
+        ...goal,
+        totalTasks,
+        completedTasks,
+        progress,
+        linkedTaskIds: linkedTasks.map((task) => task.id),
+      };
+    });
+
+    setGoalsWithTaskCounts(updatedGoals);
+  }, [goals, tasks]);
 
   // Auto-refresh goals when page becomes visible (e.g., after creating tasks)
   useEffect(() => {
@@ -279,7 +303,7 @@ export function GoalsView() {
 
         {/* Goals Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {goals.map((goal) => {
+          {goalsWithTaskCounts.map((goal) => {
             const CategoryIcon = categoryConfig[goal.category].icon;
             const StatusIcon = statusConfig[goal.status].icon;
 
