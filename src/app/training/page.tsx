@@ -449,7 +449,7 @@ export default function TrainingPage() {
         {/* Column 1: WEEKS */}
         <div className="w-64 border-r bg-card flex flex-col">
           {/* Weeks Header */}
-          <div className="p-4 border-b flex items-center justify-between">
+          <div className="px-4 py-3 border-b flex items-center justify-between h-[60px]">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase">
               Settimane
             </h2>
@@ -562,8 +562,8 @@ export default function TrainingPage() {
         {/* Column 2: SESSIONS */}
         <div className="w-64 border-r bg-card flex flex-col">
           {/* Sessions Header */}
-          <div className="p-4 border-b">
-            <div className="flex items-center justify-between mb-1">
+          <div className="px-4 py-3 border-b h-[60px] flex flex-col justify-center">
+            <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase">
                 Sessioni
               </h2>

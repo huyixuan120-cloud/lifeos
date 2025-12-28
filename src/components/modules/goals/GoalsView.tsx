@@ -239,23 +239,24 @@ export function GoalsView() {
                   : "Define a strategic goal that aligns with your vision"}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="title">Goal Title</Label>
+            <div className="space-y-5 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="title" className="text-sm font-medium">Goal Title</Label>
                 <Input
                   id="title"
                   placeholder="e.g., Launch my startup"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
+                  className="h-10"
                 />
               </div>
-              <div>
-                <Label htmlFor="category">Category</Label>
+              <div className="space-y-2">
+                <Label htmlFor="category" className="text-sm font-medium">Category</Label>
                 <Select
                   value={formCategory}
                   onValueChange={(value) => setFormCategory(value as GoalCategory)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -270,23 +271,25 @@ export function GoalsView() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="why">Why? (Your Motivation)</Label>
+              <div className="space-y-2">
+                <Label htmlFor="why" className="text-sm font-medium">Why? (Your Motivation)</Label>
                 <Textarea
                   id="why"
                   placeholder="What drives you to achieve this goal?"
                   value={formWhy}
                   onChange={(e) => setFormWhy(e.target.value)}
                   rows={3}
+                  className="resize-none"
                 />
               </div>
-              <div>
-                <Label htmlFor="target-date">Target Date (Optional)</Label>
+              <div className="space-y-2">
+                <Label htmlFor="target-date" className="text-sm font-medium">Target Date (Optional)</Label>
                 <Input
                   id="target-date"
                   type="date"
                   value={formTargetDate}
                   onChange={(e) => setFormTargetDate(e.target.value)}
+                  className="h-10"
                 />
               </div>
             </div>
