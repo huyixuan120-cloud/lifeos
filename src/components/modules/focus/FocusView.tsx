@@ -38,6 +38,7 @@ export function FocusView() {
   const {
     timerState,
     timerSettings,
+    timerSettingsError,
     startTimer,
     pauseTimer,
     setTimerMode,
@@ -146,6 +147,34 @@ export function FocusView() {
             <Settings className="h-5 w-5" />
           </Button>
         </div>
+
+        {/* Error Banner - Database Setup Required */}
+        {timerSettingsError && (
+          <div className="bg-red-50 dark:bg-red-950/30 border-2 border-red-200 dark:border-red-900 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center flex-shrink-0 mt-0.5">
+                ⚠️
+              </div>
+              <div className="flex-1 space-y-2">
+                <h3 className="font-semibold text-red-800 dark:text-red-300">
+                  Database Setup Required
+                </h3>
+                <p className="text-sm text-red-700 dark:text-red-400">
+                  {timerSettingsError}
+                </p>
+                <div className="text-xs text-red-600 dark:text-red-500 space-y-1">
+                  <p>📋 <strong>To fix this:</strong></p>
+                  <ol className="list-decimal list-inside space-y-1 ml-4">
+                    <li>Open Supabase Dashboard → SQL Editor</li>
+                    <li>Run the migration file: <code className="bg-red-100 dark:bg-red-900/50 px-1 rounded">supabase/migrations/20250101000000_create_lifeos_tables.sql</code></li>
+                    <li>Reload this page</li>
+                  </ol>
+                  <p className="mt-2">🔍 <strong>Check console for detailed error logs</strong></p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Mode Tab Selector */}
         <div>

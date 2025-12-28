@@ -1,80 +1,126 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useTasks } from "@/hooks/use-tasks";
 import { TaskList } from "@/components/modules/tasks/TaskList";
 import { EisenhowerMatrix } from "@/components/modules/tasks/EisenhowerMatrix";
 import { TaskCreateDialog } from "@/components/modules/tasks/TaskCreateDialog";
 import { CompletedArchive } from "@/components/modules/tasks/CompletedArchive";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { LogIn, Lock } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import type { LifeOSTask } from "@/types/tasks";
 
 /**
- * Tasks Page - UNIFIED WITH TIMER (Single Source of Truth)
+ * Tasks Page - SIMPLIFIED WITH PARANOID AUTH CHECK
  *
- * NOW USES SUPABASE as the single source of truth for tasks.
- * - Same data source as Timer page (/focus)
- * - Real-time sync between Planning (Tasks) and Execution (Timer)
- * - Two-way sync: changes here reflect in Timer and vice versa
+ * Strategy: Don't block the UI with auth guards.
+ * Instead, check auth FRESH every time the user tries to do something.
  *
- * Features:
- * - Top Section: Unified Task Input + Task List (Full Width)
- * - Middle Section: Eisenhower Matrix (Full Width)
- * - Bottom Section: Completed Tasks Archive
+ * This prevents stale state issues and "not logged in" errors when the user IS logged in.
  */
 export default function TasksPage() {
-  const router = useRouter();
   const supabase = createClient();
-  const { tasks, addTask, updateTask, deleteTask, toggleTask } = useTasks();
-
-  // Auth state
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const { tasks, addTask, updateTask, deleteTask, toggleTask, isLoading, error } = useTasks();
 
   // Edit Dialog State
   const [editingTask, setEditingTask] = useState<LifeOSTask | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  // Check authentication on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setIsAuthenticated(!!user);
-    };
-    checkAuth();
+  /**
+   * PARANOID AUTH CHECK: Always check user fresh from Supabase
+   * This prevents stale state issues
+   */
+  const getAuthenticatedUser = async () => {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(!!session?.user);
-    });
+    if (authError) {
+      console.error("❌ Auth error:", authError);
+      return null;
+    }
 
-    return () => subscription.unsubscribe();
-  }, [supabase]);
+    if (!user) {
+      console.warn("⚠️ No user found in session");
+      return null;
+    }
 
-  // Wrapper for updating task (Matrix view needs partial updates)
-  const handleUpdateTask = async (taskId: string, updates: Partial<any>) => {
-    await updateTask({
-      id: taskId,
-      ...updates,
-    });
+    console.log("✅ Authenticated user:", user.email, "ID:", user.id);
+    return user;
   };
 
-  // Wrapper for creating task (Matrix view passes different structure)
-  const handleCreateTask = async (taskData: any) => {
-    await addTask({
+  /**
+   * Add Task Handler - WITH PARANOID AUTH CHECK
+   */
+  const handleAddTask = async (taskData: any) => {
+    console.log("🚀 handleAddTask called with:", taskData);
+
+    // STEP 1: Get user FRESH from Supabase (no stale state!)
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      alert("❌ Session expired or not logged in. Please refresh the page and log in again.");
+      return;
+    }
+
+    // STEP 2: Prepare task data
+    const taskPayload = {
       title: taskData.title,
       priority: taskData.priority ?? "medium",
       is_urgent: taskData.is_urgent ?? false,
       is_important: taskData.is_important ?? false,
       is_completed: false,
-    });
+      due_date: taskData.due_date ?? null,
+    };
+
+    console.log("📤 Calling addTask with payload:", taskPayload);
+    console.log("👤 User ID that will be injected:", user.id);
+
+    // STEP 3: Call the hook's addTask (which will inject user_id)
+    try {
+      await addTask(taskPayload);
+      console.log("✅ Task added successfully!");
+    } catch (error) {
+      console.error("❌ Failed to add task:", error);
+
+      // Show user-friendly error
+      if (error instanceof Error) {
+        if (error.message.includes("Not authenticated")) {
+          alert("❌ Session expired. Please refresh the page and log in again.");
+        } else {
+          alert(`❌ Failed to add task: ${error.message}`);
+        }
+      } else {
+        alert("❌ Failed to add task. Check console for details.");
+      }
+    }
   };
 
-  // Wrapper for adding task (from TaskList)
-  const handleAddTask = async (taskData: any) => {
+  /**
+   * Update Task Handler - WITH PARANOID AUTH CHECK
+   */
+  const handleUpdateTask = async (taskId: string, updates: Partial<any>) => {
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      alert("❌ Session expired. Please refresh and log in again.");
+      return;
+    }
+
+    try {
+      await updateTask({ id: taskId, ...updates });
+      console.log("✅ Task updated successfully");
+    } catch (error) {
+      console.error("❌ Failed to update task:", error);
+      alert("❌ Failed to update task. Check console for details.");
+    }
+  };
+
+  /**
+   * Create Task from Matrix - WITH PARANOID AUTH CHECK
+   */
+  const handleCreateTask = async (taskData: any) => {
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      alert("❌ Session expired. Please refresh and log in again.");
+      return;
+    }
+
     try {
       await addTask({
         title: taskData.title,
@@ -84,79 +130,118 @@ export default function TasksPage() {
         is_completed: false,
         due_date: taskData.due_date ?? null,
       });
+      console.log("✅ Task created from matrix");
     } catch (error) {
-      console.error("Failed to add task:", error);
-      alert("Failed to add task. Please make sure you are logged in.");
+      console.error("❌ Failed to create task:", error);
+      alert("❌ Failed to create task. Check console for details.");
     }
   };
 
-  // Toggle task completion - Direct Supabase sync
-  // Changes here are immediately reflected in Timer page!
+  /**
+   * Toggle Task Completion - WITH PARANOID AUTH CHECK
+   */
   const handleToggleTask = async (taskId: string, isCompleted: boolean) => {
-    await toggleTask(taskId, isCompleted);
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      alert("❌ Session expired. Please refresh and log in again.");
+      return;
+    }
+
+    try {
+      await toggleTask(taskId, isCompleted);
+      console.log("✅ Task toggled successfully");
+    } catch (error) {
+      console.error("❌ Failed to toggle task:", error);
+    }
   };
 
-  // Edit Handler - Opens edit dialog with task data
+  /**
+   * Delete Task - WITH PARANOID AUTH CHECK
+   */
+  const handleDeleteTask = async (taskId: string) => {
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      alert("❌ Session expired. Please refresh and log in again.");
+      return;
+    }
+
+    try {
+      await deleteTask(taskId);
+      console.log("✅ Task deleted successfully");
+    } catch (error) {
+      console.error("❌ Failed to delete task:", error);
+      alert("❌ Failed to delete task. Check console for details.");
+    }
+  };
+
+  /**
+   * Edit Task Handler
+   */
   const handleEditTask = (task: LifeOSTask) => {
     setEditingTask(task);
     setIsEditDialogOpen(true);
   };
 
-  // Edit Submit Handler - Updates task with new data
+  /**
+   * Edit Submit Handler - WITH PARANOID AUTH CHECK
+   */
   const handleEditSubmit = async (taskData: any) => {
     if (!editingTask) return;
 
-    await updateTask({
-      id: editingTask.id,
-      title: taskData.title,
-      priority: taskData.priority,
-      is_urgent: taskData.is_urgent,
-      is_important: taskData.is_important,
-      due_date: taskData.due_date,
-    });
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      alert("❌ Session expired. Please refresh and log in again.");
+      return;
+    }
 
-    setIsEditDialogOpen(false);
-    setEditingTask(null);
+    try {
+      await updateTask({
+        id: editingTask.id,
+        title: taskData.title,
+        priority: taskData.priority,
+        is_urgent: taskData.is_urgent,
+        is_important: taskData.is_important,
+        due_date: taskData.due_date,
+      });
+
+      setIsEditDialogOpen(false);
+      setEditingTask(null);
+      console.log("✅ Task edited successfully");
+    } catch (error) {
+      console.error("❌ Failed to edit task:", error);
+      alert("❌ Failed to edit task. Check console for details.");
+    }
   };
 
-  // Show login prompt if not authenticated
-  if (isAuthenticated === false) {
-    return (
-      <div className="h-full bg-gradient-to-br from-[#FAF9F7] via-[#FEFDFB] to-[#F5EFE7] dark:from-[#2A2420] dark:via-[#2A2420] dark:to-[#342E28] flex items-center justify-center p-6">
-        <Card className="max-w-md w-full border-gray-200 dark:border-gray-800 shadow-lg">
-          <CardHeader className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-[#C97152] to-[#D4915E] flex items-center justify-center">
-              <Lock className="h-8 w-8 text-white" />
-            </div>
-            <CardTitle className="text-2xl">Authentication Required</CardTitle>
-            <CardDescription className="text-base">
-              You need to sign in to manage your tasks. All your data is private and secured with Row Level Security.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button
-              onClick={() => router.push("/login")}
-              className="w-full h-12 bg-gradient-to-r from-[#C97152] to-[#D4915E] hover:opacity-90 text-white"
-            >
-              <LogIn className="h-5 w-5 mr-2" />
-              Sign In to Continue
-            </Button>
-            <p className="text-xs text-center text-muted-foreground">
-              Sign in with Google or use a magic link via email
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Show loading state while checking auth
-  if (isAuthenticated === null) {
+  // Show loading state
+  if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="w-8 h-8 border-4 border-[#C97152] border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
+          <p className="text-sm text-muted-foreground">Loading tasks...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center p-6">
+        <div className="bg-red-50 dark:bg-red-950/30 border-2 border-red-200 dark:border-red-900 rounded-lg p-6 max-w-md">
+          <h3 className="font-semibold text-red-800 dark:text-red-300 mb-2">
+            ❌ Error Loading Tasks
+          </h3>
+          <p className="text-sm text-red-700 dark:text-red-400 mb-4">
+            {error}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Reload Page
+          </button>
         </div>
       </div>
     );
@@ -183,7 +268,7 @@ export default function TasksPage() {
               tasks={tasks as LifeOSTask[]}
               onAdd={handleAddTask}
               onToggle={handleToggleTask}
-              onDelete={deleteTask}
+              onDelete={handleDeleteTask}
               onEdit={handleEditTask}
             />
           </div>
@@ -211,7 +296,7 @@ export default function TasksPage() {
             <div className="mb-4">
               <h2 className="text-xl font-semibold">Completed Tasks</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Archive of tasks you've checked off
+                Tasks you've finished
               </p>
             </div>
             <CompletedArchive tasks={tasks as LifeOSTask[]} />

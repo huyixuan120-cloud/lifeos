@@ -133,6 +133,8 @@ export function useTasks(): UseTasksReturn {
           is_important: taskData.is_important ?? false,
         };
 
+        console.log("📤 Inserting task with data:", dbTask);
+
         const { data, error: insertError } = await supabase
           .from("tasks")
           .insert([dbTask])
@@ -140,9 +142,22 @@ export function useTasks(): UseTasksReturn {
           .single();
 
         if (insertError) {
-          console.error("Error adding task:", insertError);
-          setError(insertError.message);
-          throw insertError;
+          console.error("❌ Error adding task:");
+          console.error("Error object:", insertError);
+          console.error("Error code:", insertError.code);
+          console.error("Error message:", insertError.message);
+          console.error("Error details:", insertError.details);
+          console.error("Error hint:", insertError.hint);
+          console.error("Full error JSON:", JSON.stringify(insertError, null, 2));
+
+          const errorMsg = insertError.message ||
+            insertError.hint ||
+            (insertError.code === "42P01" ? "Table 'tasks' does not exist. Please run the SQL migration in Supabase." :
+             insertError.code === "PGRST204" ? "Schema mismatch. The 'tasks' table structure doesn't match the expected columns." :
+             "Failed to add task. Check Supabase RLS policies and table structure.");
+
+          setError(errorMsg);
+          throw new Error(errorMsg);
         }
 
         if (data) {

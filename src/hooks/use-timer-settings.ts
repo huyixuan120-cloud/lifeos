@@ -82,7 +82,9 @@ export function useTimerSettings(): UseTimerSettingsReturn {
       if (fetchError) {
         // If no settings exist (404), create default settings
         if (fetchError.code === "PGRST116") {
-          const { error: insertError } = await supabase
+          console.log("⚙️ No settings found, creating defaults for user:", user.id);
+
+          const { data: insertData, error: insertError } = await supabase
             .from("pomodoro_settings")
             .insert({
               user_id: user.id,
@@ -93,14 +95,29 @@ export function useTimerSettings(): UseTimerSettingsReturn {
               auto_start_pomodoros: DEFAULT_SETTINGS.autoStartPomodoros,
               volume: DEFAULT_SETTINGS.volume,
               alarm_sound: DEFAULT_SETTINGS.alarmSound,
-            });
+            })
+            .select()
+            .single();
 
           if (insertError) {
-            console.error("Error creating default settings:", insertError);
-            setError(insertError.message);
+            console.error("❌ Error creating default settings:");
+            console.error("Error object:", insertError);
+            console.error("Error code:", insertError.code);
+            console.error("Error message:", insertError.message);
+            console.error("Error details:", insertError.details);
+            console.error("Error hint:", insertError.hint);
+            console.error("Full error JSON:", JSON.stringify(insertError, null, 2));
+
+            const errorMsg = insertError.message ||
+              insertError.hint ||
+              (insertError.code === "42P01" ? "Table 'pomodoro_settings' does not exist. Please run the SQL migration in Supabase." :
+               "Failed to create default settings. Check Supabase RLS policies.");
+
+            setError(errorMsg);
             return;
           }
 
+          console.log("✅ Default settings created successfully:", insertData);
           setSettings(DEFAULT_SETTINGS);
         } else {
           console.error("Error fetching settings:", fetchError);

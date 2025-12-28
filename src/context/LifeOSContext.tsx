@@ -27,6 +27,7 @@ interface LifeOSContextType {
   focusSessions: FocusSession[];
   timerState: FocusTimerState;
   timerSettings: TimerSettings;
+  timerSettingsError: string | null;
 
   // Task Management
   addTask: (task: Omit<ExtendedTask, "id" | "created_at" | "updated_at">) => void;
@@ -217,6 +218,8 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
   // Timer Settings (Now from Supabase with RLS!)
   const {
     settings: timerSettings,
+    isLoading: isLoadingSettings,
+    error: timerSettingsError,
     updateSettings: updateTimerSettingsDB
   } = useTimerSettings();
 
@@ -902,6 +905,7 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
     focusSessions,
     timerState,
     timerSettings,
+    timerSettingsError,
 
     // Task Management
     addTask,
