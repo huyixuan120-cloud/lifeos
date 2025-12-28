@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
   User,
   CheckCircle,
@@ -14,6 +15,8 @@ import {
   Bell,
   CircleHelp,
   Dumbbell,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -25,6 +28,8 @@ import {
 } from "@/components/ui/tooltip";
 import { CommandPalette } from "@/components/ui/CommandPalette";
 import { useLifeOS } from "@/hooks/useLifeOS";
+import { createClient } from "@/utils/supabase/client";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -51,7 +56,31 @@ const footerItems: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { timerState } = useLifeOS();
+  const supabase = createClient();
+
+  // Auth state
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Check authentication status on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      setIsLoading(false);
+    };
+
+    checkAuth();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase]);
 
   // Format time as MM:SS for mini timer display
   const formatTime = (seconds: number): string => {
@@ -62,6 +91,15 @@ export function Sidebar() {
 
   const handleSearchClick = () => {
     window.dispatchEvent(new Event("open-command-palette"));
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
+  const handleLogin = () => {
+    router.push("/login");
   };
 
   const NavButton = ({ item }: { item: NavItem }) => {
@@ -152,6 +190,72 @@ export function Sidebar() {
             {footerItems.map((item, index) => (
               <NavButton key={index} item={item} />
             ))}
+
+            {/* Auth Section - Login or Logout */}
+            {!isLoading && (
+              <>
+                <Separator className="w-10 my-2" />
+                {user ? (
+                  // Logged in - Show user avatar and logout button
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="w-12 h-12 rounded-lg"
+                          asChild
+                        >
+                          <Link href="/profile">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#C97152] to-[#D4915E] flex items-center justify-center text-white font-semibold text-sm">
+                              {user.email?.charAt(0).toUpperCase()}
+                            </div>
+                          </Link>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p className="font-medium">{user.email}</p>
+                        <p className="text-xs text-muted-foreground">View Profile</p>
+                      </TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleLogout}
+                          className="w-12 h-12 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400"
+                        >
+                          <LogOut className="h-5 w-5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>Logout</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </>
+                ) : (
+                  // Not logged in - Show login button
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleLogin}
+                        className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#C97152] to-[#D4915E] text-white hover:opacity-90"
+                      >
+                        <LogIn className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      <p>Sign In</p>
+                      <p className="text-xs text-muted-foreground">Required for data sync</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </>
+            )}
           </div>
         </div>
       </aside>

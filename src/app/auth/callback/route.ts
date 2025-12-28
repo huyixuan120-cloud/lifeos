@@ -101,8 +101,8 @@ export async function GET(request: NextRequest) {
       expiresAt: data.session.expires_at,
     });
 
-    // Redirect to profile with success status
-    const redirectUrl = `${origin}/profile?status=connected`;
+    // Redirect to dashboard after successful authentication
+    const redirectUrl = `${origin}/?status=authenticated`;
 
     console.log('\n');
     console.log('='.repeat(80));

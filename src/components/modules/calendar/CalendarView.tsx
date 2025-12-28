@@ -634,6 +634,7 @@ export function CalendarView() {
         mode={editingTask ? "edit" : "create"}
         onSubmit={handleTaskUpdate}
         onAdd={createTask}
+        trigger={<span style={{ display: 'none' }} />}
       />
     </>
   );

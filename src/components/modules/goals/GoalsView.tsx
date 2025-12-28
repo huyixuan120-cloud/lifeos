@@ -44,7 +44,7 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { useLifeOS } from "@/hooks/useLifeOS";
+import { useGoals } from "@/hooks/use-goals";
 import type { GoalCategory, GoalStatus, Goal } from "@/types";
 
 const categoryConfig: Record<GoalCategory, { icon: React.ElementType; label: string; color: string }> = {
@@ -63,8 +63,8 @@ const statusConfig: Record<GoalStatus, { label: string; color: string; icon: Rea
 };
 
 export function GoalsView() {
-  // Get real goals data from global context
-  const { goals, addGoal, updateGoal, deleteGoal } = useLifeOS();
+  // Get real goals data from Supabase (with RLS)
+  const { goals, isLoading, addGoal, updateGoal, deleteGoal } = useGoals();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
@@ -76,31 +76,35 @@ export function GoalsView() {
   const [formTargetDate, setFormTargetDate] = useState("");
 
   // Handle add/update goal
-  const handleSaveGoal = () => {
+  const handleSaveGoal = async () => {
     if (!formTitle.trim()) return;
 
-    if (dialogMode === "edit" && editingGoal) {
-      // Update existing goal
-      updateGoal(editingGoal.id, {
-        title: formTitle.trim(),
-        category: formCategory,
-        why: formWhy.trim(),
-        targetDate: formTargetDate || null,
-      });
-    } else {
-      // Create new goal
-      addGoal({
-        title: formTitle.trim(),
-        category: formCategory,
-        status: "on-track",
-        why: formWhy.trim(),
-        targetDate: formTargetDate || null,
-      });
-    }
+    try {
+      if (dialogMode === "edit" && editingGoal) {
+        // Update existing goal
+        await updateGoal({
+          id: editingGoal.id,
+          title: formTitle.trim(),
+          category: formCategory,
+          why: formWhy.trim(),
+          targetDate: formTargetDate || null,
+        });
+      } else {
+        // Create new goal
+        await addGoal({
+          title: formTitle.trim(),
+          category: formCategory,
+          why: formWhy.trim(),
+          targetDate: formTargetDate || null,
+        });
+      }
 
-    resetForm();
-    setIsAddDialogOpen(false);
-    setEditingGoal(null);
+      resetForm();
+      setIsAddDialogOpen(false);
+      setEditingGoal(null);
+    } catch (error) {
+      console.error("Failed to save goal:", error);
+    }
   };
 
   // Open dialog in edit mode
@@ -124,10 +128,14 @@ export function GoalsView() {
   };
 
   // Handle delete goal
-  const handleDeleteGoal = (goalId: string, e: React.MouseEvent) => {
+  const handleDeleteGoal = async (goalId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
     if (window.confirm("Are you sure you want to delete this goal? This action cannot be undone.")) {
-      deleteGoal(goalId);
+      try {
+        await deleteGoal(goalId);
+      } catch (error) {
+        console.error("Failed to delete goal:", error);
+      }
     }
   };
 

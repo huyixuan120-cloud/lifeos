@@ -13,6 +13,7 @@ import {
   determineGoalStatus,
   TaskEffort,
 } from "@/types";
+import { useTimerSettings } from "@/hooks/use-timer-settings";
 
 // =============================================================================
 // CONTEXT TYPE DEFINITION
@@ -213,20 +214,11 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
   const [userProfile, setUserProfile] = useState<UserProfile>(MOCK_USER_PROFILE);
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>(MOCK_FOCUS_SESSIONS);
 
-  // Timer Settings (Load from localStorage or use defaults)
-  const [timerSettings, setTimerSettings] = useState<TimerSettings>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("lifeos-timer-settings");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {
-          return DEFAULT_TIMER_SETTINGS;
-        }
-      }
-    }
-    return DEFAULT_TIMER_SETTINGS;
-  });
+  // Timer Settings (Now from Supabase with RLS!)
+  const {
+    settings: timerSettings,
+    updateSettings: updateTimerSettingsDB
+  } = useTimerSettings();
 
   // Focus Timer State (Persists across page navigations)
   const [timerState, setTimerState] = useState<FocusTimerState>({
@@ -859,15 +851,16 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
   // ===========================================================================
 
   /**
-   * Update timer settings and persist to localStorage
+   * Update timer settings and persist to Supabase (with RLS)
    */
-  const updateTimerSettings = useCallback((settings: TimerSettings) => {
-    setTimerSettings(settings);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("lifeos-timer-settings", JSON.stringify(settings));
+  const updateTimerSettings = useCallback(async (settings: TimerSettings) => {
+    try {
+      await updateTimerSettingsDB(settings);
+      console.log("⚙️ Timer settings updated in Supabase");
+    } catch (error) {
+      console.error("Failed to update timer settings:", error);
     }
-    console.log("⚙️ Timer settings updated");
-  }, []);
+  }, [updateTimerSettingsDB]);
 
   // ===========================================================================
   // TASK BULK ACTIONS

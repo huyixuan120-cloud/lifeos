@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useLifeOS } from "@/hooks/useLifeOS";
+import { useTasks } from "@/hooks/use-tasks";
 import { TaskList } from "@/components/modules/tasks/TaskList";
 import { EisenhowerMatrix } from "@/components/modules/tasks/EisenhowerMatrix";
 import { TaskCreateDialog } from "@/components/modules/tasks/TaskCreateDialog";
@@ -9,20 +9,20 @@ import { CompletedArchive } from "@/components/modules/tasks/CompletedArchive";
 import type { LifeOSTask } from "@/types/tasks";
 
 /**
- * Tasks Page - VERTICAL LAYOUT (Clean & Practical)
+ * Tasks Page - UNIFIED WITH TIMER (Single Source of Truth)
  *
- * Features a vertical single-column layout:
+ * NOW USES SUPABASE as the single source of truth for tasks.
+ * - Same data source as Timer page (/focus)
+ * - Real-time sync between Planning (Tasks) and Execution (Timer)
+ * - Two-way sync: changes here reflect in Timer and vice versa
+ *
+ * Features:
  * - Top Section: Unified Task Input + Task List (Full Width)
- * - Bottom Section: Eisenhower Matrix (Full Width, generous spacing above)
- *
- * Benefits:
- * - No more cluttered 2-column split
- * - Better handling of long task text
- * - Clean single input with expandable advanced options
- * - Generous spacing between sections for visual clarity
+ * - Middle Section: Eisenhower Matrix (Full Width)
+ * - Bottom Section: Completed Tasks Archive
  */
 export default function TasksPage() {
-  const { tasks, addTask, updateTask, deleteTask, completeTask } = useLifeOS();
+  const { tasks, addTask, updateTask, deleteTask, toggleTask } = useTasks();
 
   // Edit Dialog State
   const [editingTask, setEditingTask] = useState<LifeOSTask | null>(null);
@@ -30,7 +30,10 @@ export default function TasksPage() {
 
   // Wrapper for updating task (Matrix view needs partial updates)
   const handleUpdateTask = async (taskId: string, updates: Partial<any>) => {
-    await updateTask(taskId, updates);
+    await updateTask({
+      id: taskId,
+      ...updates,
+    });
   };
 
   // Wrapper for creating task (Matrix view passes different structure)
@@ -41,8 +44,6 @@ export default function TasksPage() {
       is_urgent: taskData.is_urgent ?? false,
       is_important: taskData.is_important ?? false,
       is_completed: false,
-      effort: "medium", // Default effort level for XP calculation
-      goalId: taskData.goalId ?? null, // Link to goal if selected
     });
   };
 
@@ -55,20 +56,13 @@ export default function TasksPage() {
       is_important: taskData.is_important ?? false,
       is_completed: false,
       due_date: taskData.due_date ?? null,
-      effort: "medium", // Default effort level
-      goalId: taskData.goalId ?? null, // Link to goal if selected
     });
   };
 
-  // Toggle task completion - Uses smart completeTask from context
-  // This automatically awards XP and updates linked goals!
-  const handleToggleTask = (taskId: string, isCompleted: boolean) => {
-    if (isCompleted) {
-      completeTask(taskId); // Smart completion with XP rewards
-    } else {
-      // If uncompleting, just update the task
-      updateTask(taskId, { is_completed: false });
-    }
+  // Toggle task completion - Direct Supabase sync
+  // Changes here are immediately reflected in Timer page!
+  const handleToggleTask = async (taskId: string, isCompleted: boolean) => {
+    await toggleTask(taskId, isCompleted);
   };
 
   // Edit Handler - Opens edit dialog with task data
@@ -81,13 +75,13 @@ export default function TasksPage() {
   const handleEditSubmit = async (taskData: any) => {
     if (!editingTask) return;
 
-    await updateTask(editingTask.id, {
+    await updateTask({
+      id: editingTask.id,
       title: taskData.title,
       priority: taskData.priority,
       is_urgent: taskData.is_urgent,
       is_important: taskData.is_important,
       due_date: taskData.due_date,
-      goalId: taskData.goalId ?? null, // Update goal link
     });
 
     setIsEditDialogOpen(false);
@@ -162,6 +156,7 @@ export default function TasksPage() {
         mode={editingTask ? "edit" : "create"}
         onSubmit={handleEditSubmit}
         onAdd={handleAddTask}
+        trigger={<span style={{ display: 'none' }} />}
       />
     </div>
   );

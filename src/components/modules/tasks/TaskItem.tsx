@@ -1,10 +1,12 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { Trash2, Play } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import type { LifeOSTask, TaskPriority } from "@/types/tasks";
 import { PRIORITY_COLORS } from "@/types/tasks";
+import { useLifeOS } from "@/hooks/useLifeOS";
 
 interface TaskItemProps {
   task: LifeOSTask;
@@ -20,6 +22,7 @@ interface TaskItemProps {
  * - Checkbox for completion toggle
  * - Title with strikethrough when completed
  * - Priority indicator (colored dot)
+ * - Focus button (▶️) - Opens Timer page with this task active
  * - Delete button
  *
  * @example
@@ -32,7 +35,15 @@ interface TaskItemProps {
  * ```
  */
 export function TaskItem({ task, onToggle, onDelete, onEdit }: TaskItemProps) {
+  const router = useRouter();
+  const { setTimerTaskId } = useLifeOS();
   const priorityInfo = PRIORITY_COLORS[task.priority as TaskPriority];
+
+  // Handle Focus Mode - Navigate to Timer with this task active
+  const handleFocus = () => {
+    setTimerTaskId(task.id);
+    router.push("/focus");
+  };
 
   return (
     <div className="group flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors">
@@ -66,15 +77,31 @@ export function TaskItem({ task, onToggle, onDelete, onEdit }: TaskItemProps) {
         </span>
       </div>
 
-      {/* Delete Button (visible on hover) */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-        onClick={() => onDelete(task.id)}
-      >
-        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-      </Button>
+      {/* Action Buttons (visible on hover) */}
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Focus Button - Opens Timer with this task */}
+        {!task.is_completed && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-[#C97152] hover:text-[#B8886B] hover:bg-[#FCE8E6]"
+            onClick={handleFocus}
+            title="Focus on this task"
+          >
+            <Play className="h-4 w-4" />
+          </Button>
+        )}
+
+        {/* Delete Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => onDelete(task.id)}
+        >
+          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+        </Button>
+      </div>
     </div>
   );
 }
