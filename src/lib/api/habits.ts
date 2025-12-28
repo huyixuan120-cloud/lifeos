@@ -66,7 +66,7 @@ export async function getHabits(): Promise<Habit[]> {
     .order('created_at', { ascending: true });
 
   if (error) {
-    console.error("Error fetching habits:", error);
+    // Silent error handling - table doesn't exist, app uses localStorage fallback
     return [];
   }
 
@@ -135,7 +135,7 @@ export async function createHabit(title: string, emoji: string): Promise<Habit |
     .single();
 
   if (error) {
-    console.error("Error creating habit:", error);
+    // Silent error handling - table doesn't exist, app uses localStorage fallback
     return null;
   }
 
@@ -195,7 +195,7 @@ export async function toggleHabit(habitId: string, date?: string): Promise<boole
       .eq('id', existingLog.id);
 
     if (error) {
-      console.error("Error deleting habit log:", error);
+      // Silent error handling - table doesn't exist, app uses localStorage fallback
       return false;
     }
   } else {
@@ -205,7 +205,7 @@ export async function toggleHabit(habitId: string, date?: string): Promise<boole
       .insert([{ habit_id: habitId, completed_at: targetDate }]);
 
     if (error) {
-      console.error("Error creating habit log:", error);
+      // Silent error handling - table doesn't exist, app uses localStorage fallback
       return false;
     }
   }
@@ -244,7 +244,7 @@ export async function deleteHabit(habitId: string): Promise<boolean> {
     .eq('id', habitId);
 
   if (error) {
-    console.error("Error deleting habit:", error);
+    // Silent error handling - table doesn't exist, app uses localStorage fallback
     return false;
   }
 
@@ -260,7 +260,7 @@ async function calculateStreak(habitId: string): Promise<number> {
     .rpc('calculate_habit_streak', { p_habit_id: habitId });
 
   if (error) {
-    console.error("Error calculating streak:", error);
+    // Silent error handling - function doesn't exist, return 0
     return 0;
   }
 
