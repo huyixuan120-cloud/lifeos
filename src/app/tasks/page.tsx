@@ -28,6 +28,7 @@ export default function TasksPage() {
       is_important: taskData.is_important ?? false,
       is_completed: false,
       due_date: taskData.due_date ?? null,
+      goal_id: taskData.goal_id ?? null, // ✅ FIX: Pass goal_id
     };
 
     try {
@@ -66,6 +67,7 @@ export default function TasksPage() {
         is_important: taskData.is_important ?? false,
         is_completed: false,
         due_date: taskData.due_date ?? null,
+        goal_id: taskData.goal_id ?? null, // ✅ FIX: Pass goal_id
       });
       console.log("✅ Task created from matrix");
     } catch (error) {

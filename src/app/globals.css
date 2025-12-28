@@ -286,10 +286,10 @@
   display: none;
 }
 
-/* Time grid */
+/* Time grid - Compact for 15min slots */
 .fc .fc-timegrid-slot {
   @apply border-border;
-  height: 3rem;
+  height: 1.5rem;
 }
 
 .fc .fc-timegrid-slot-label {
@@ -314,19 +314,38 @@
   background-color: transparent !important;
 }
 
-/* Grid Lines */
+/* Grid Lines - Soft Autumn Tones */
 .fc .fc-timegrid-slot,
 .fc .fc-timegrid-slot-lane {
-  border-color: hsl(var(--border)) !important;
+  border-color: rgba(232, 226, 218, 0.25) !important; /* Very light warm beige */
+  border-style: solid !important;
+  border-width: 1px 0 0 0 !important;
 }
 
 .fc .fc-timegrid-divider {
-  border-color: hsl(var(--border)) !important;
+  border-color: rgba(232, 226, 218, 0.4) !important;
+  border-style: solid !important;
 }
 
 .fc-theme-standard td,
 .fc-theme-standard th {
-  border-color: hsl(var(--border)) !important;
+  border-color: rgba(232, 226, 218, 0.3) !important;
+  border-style: solid !important;
+}
+
+/* 15-minute lines - Nearly invisible */
+.fc .fc-timegrid-slot-lane {
+  border-color: rgba(249, 246, 241, 0.6) !important; /* Ultra light beige, barely visible */
+}
+
+/* Hour lines - Slightly more visible but still subtle */
+.fc .fc-timegrid-slot[data-time$=":00:00"] {
+  border-color: rgba(201, 113, 82, 0.12) !important; /* Terracotta tint, very subtle */
+  border-width: 1px 0 0 0 !important;
+}
+
+.fc .fc-timegrid-slot[data-time$=":00:00"] .fc-timegrid-slot-lane {
+  border-color: rgba(201, 113, 82, 0.12) !important;
 }
 
 /* Scrollbars */

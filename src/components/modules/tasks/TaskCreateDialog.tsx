@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import type { CreateTaskInput, TaskPriority } from "@/types/tasks";
 import { cn } from "@/lib/utils";
-import { useLifeOS } from "@/hooks/useLifeOS";
+import { useGoals } from "@/hooks/use-goals";
 
 interface TaskCreateDialogProps {
   onAdd: (taskData: CreateTaskInput) => Promise<void>;
@@ -67,8 +67,8 @@ export function TaskCreateDialog({
 
   const [isAdding, setIsAdding] = useState(false);
 
-  // Get goals data from global context
-  const { goals } = useLifeOS();
+  // Get goals data from Supabase
+  const { goals, isLoading: goalsLoading } = useGoals();
 
   // Form state
   const [title, setTitle] = useState("");
@@ -224,23 +224,33 @@ export function TaskCreateDialog({
               Linked Goal (Optional)
             </Label>
             <Select value={goalId} onValueChange={setGoalId}>
-              <SelectTrigger id="goal" disabled={isAdding}>
-                <SelectValue placeholder="Select a goal..." />
+              <SelectTrigger id="goal" disabled={isAdding || goalsLoading}>
+                <SelectValue placeholder={goalsLoading ? "Loading..." : "Select a goal..."} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">
                   <span className="text-muted-foreground">No Goal</span>
                 </SelectItem>
-                {goals.map((goal) => (
-                  <SelectItem key={goal.id} value={goal.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{goal.title}</span>
-                      <span className="text-xs text-muted-foreground">
-                        ({goal.progress}%)
-                      </span>
-                    </div>
+                {goalsLoading ? (
+                  <SelectItem value="loading" disabled>
+                    <span className="text-muted-foreground">Loading goals...</span>
                   </SelectItem>
-                ))}
+                ) : goals.length === 0 ? (
+                  <SelectItem value="empty" disabled>
+                    <span className="text-muted-foreground">No goals available</span>
+                  </SelectItem>
+                ) : (
+                  goals.map((goal) => (
+                    <SelectItem key={goal.id} value={goal.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{goal.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({goal.progress}%)
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             {goalId && goalId !== "none" && (

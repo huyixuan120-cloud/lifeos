@@ -1,9 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { LifeOSTask, PRIORITY_COLORS } from "@/types/tasks";
-import { Plus, CheckCircle2, Circle, Clock, Flag } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CheckCircle2, Circle, Clock, Flag } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
@@ -177,10 +175,10 @@ function TaskCard({
   return (
     <div
       className={cn(
-        "group p-3 rounded-lg border transition-all",
+        "group p-4 rounded-lg border-2 shadow-sm transition-all", // FIX: Più evidenza
         task.is_completed
           ? "bg-white/50 border-gray-200"
-          : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm"
+          : "bg-white border-gray-300 hover:border-gray-400 hover:shadow-md" // FIX: Bordo più marcato
       )}
     >
       <div className="flex items-start gap-3">
@@ -196,7 +194,7 @@ function TaskCard({
           {/* Title */}
           <p
             className={cn(
-              "text-sm font-medium leading-tight",
+              "text-base font-semibold leading-tight", // FIX: Testo più grande e bold
               task.is_completed && "line-through text-muted-foreground"
             )}
           >
@@ -207,13 +205,13 @@ function TaskCard({
           <div className="flex items-center gap-2 mt-1.5">
             {/* Priority Badge */}
             <div
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold" // FIX: Badge più grande
               style={{
                 backgroundColor: priorityInfo.bg + "20",
                 color: priorityInfo.bg,
               }}
             >
-              <Flag className="h-2.5 w-2.5" />
+              <Flag className="h-3 w-3" />
               <span>{task.priority}</span>
             </div>
 
@@ -245,31 +243,8 @@ function TaskCard({
  * Eisenhower Matrix Component
  */
 export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = false }: EisenhowerMatrixProps) {
-  const [creatingInQuadrant, setCreatingInQuadrant] = useState<string | null>(null);
-
   const handleToggleComplete = async (taskId: string, completed: boolean) => {
     await onUpdateTask(taskId, { is_completed: completed });
-  };
-
-  const handleQuickAdd = async (quadrant: Quadrant) => {
-    const title = prompt(`New task in "${quadrant.title}" quadrant:`);
-    if (!title?.trim()) return;
-
-    setCreatingInQuadrant(quadrant.id);
-    try {
-      // Determine priority based on quadrant
-      const priority = quadrant.isUrgent && quadrant.isImportant ? "high" :
-                       quadrant.isImportant ? "medium" : "low";
-
-      await onCreateTask({
-        title: title.trim(),
-        is_urgent: quadrant.isUrgent,
-        is_important: quadrant.isImportant,
-        priority,
-      });
-    } finally {
-      setCreatingInQuadrant(null);
-    }
   };
 
   // Filter incomplete tasks for the matrix
@@ -328,7 +303,7 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                 "flex flex-col border-l-4 rounded-lg transition-all",
                 quadrant.bgColor,
                 quadrant.borderColor,
-                compact ? "p-2" : "p-4"
+                compact ? "p-2 min-h-[250px]" : "p-4 min-h-[500px]" // FIX: Altezza fissa
               )}
             >
               <div className={cn(compact ? "pb-1" : "pb-3")}>
@@ -374,13 +349,6 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                     </p>
                   )}
                 </div>
-                {!compact && (
-                  <Button variant="outline" size="sm" className={cn("mt-3 w-full border-dashed", quadrant.borderColor, quadrant.textColor, "hover:bg-white/80")}
-                    onClick={() => handleQuickAdd(quadrant)} disabled={creatingInQuadrant === quadrant.id}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    {creatingInQuadrant === quadrant.id ? "Adding..." : "Quick Add"}
-                  </Button>
-                )}
               </div>
             </div>
           );
@@ -396,7 +364,7 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                 "flex flex-col border-l-4 rounded-lg transition-all",
                 quadrant.bgColor,
                 quadrant.borderColor,
-                compact ? "p-2" : "p-4"
+                compact ? "p-2 min-h-[250px]" : "p-4 min-h-[500px]" // FIX: Altezza fissa
               )}
             >
               <div className={cn(compact ? "pb-1" : "pb-3")}>
@@ -442,13 +410,6 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                     </p>
                   )}
                 </div>
-                {!compact && (
-                  <Button variant="outline" size="sm" className={cn("mt-3 w-full border-dashed", quadrant.borderColor, quadrant.textColor, "hover:bg-white/80")}
-                    onClick={() => handleQuickAdd(quadrant)} disabled={creatingInQuadrant === quadrant.id}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    {creatingInQuadrant === quadrant.id ? "Adding..." : "Quick Add"}
-                  </Button>
-                )}
               </div>
             </div>
           );
@@ -475,7 +436,7 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                 "flex flex-col border-l-4 rounded-lg transition-all",
                 quadrant.bgColor,
                 quadrant.borderColor,
-                compact ? "p-2" : "p-4"
+                compact ? "p-2 min-h-[250px]" : "p-4 min-h-[500px]" // FIX: Altezza fissa
               )}
             >
               <div className={cn(compact ? "pb-1" : "pb-3")}>
@@ -521,13 +482,6 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                     </p>
                   )}
                 </div>
-                {!compact && (
-                  <Button variant="outline" size="sm" className={cn("mt-3 w-full border-dashed", quadrant.borderColor, quadrant.textColor, "hover:bg-white/80")}
-                    onClick={() => handleQuickAdd(quadrant)} disabled={creatingInQuadrant === quadrant.id}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    {creatingInQuadrant === quadrant.id ? "Adding..." : "Quick Add"}
-                  </Button>
-                )}
               </div>
             </div>
           );
@@ -543,7 +497,7 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                 "flex flex-col border-l-4 rounded-lg transition-all",
                 quadrant.bgColor,
                 quadrant.borderColor,
-                compact ? "p-2" : "p-4"
+                compact ? "p-2 min-h-[250px]" : "p-4 min-h-[500px]" // FIX: Altezza fissa
               )}
             >
               <div className={cn(compact ? "pb-1" : "pb-3")}>
@@ -589,13 +543,6 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                     </p>
                   )}
                 </div>
-                {!compact && (
-                  <Button variant="outline" size="sm" className={cn("mt-3 w-full border-dashed", quadrant.borderColor, quadrant.textColor, "hover:bg-white/80")}
-                    onClick={() => handleQuickAdd(quadrant)} disabled={creatingInQuadrant === quadrant.id}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    {creatingInQuadrant === quadrant.id ? "Adding..." : "Quick Add"}
-                  </Button>
-                )}
               </div>
             </div>
           );

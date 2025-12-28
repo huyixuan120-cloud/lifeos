@@ -511,8 +511,8 @@ export function CalendarView() {
                 dayHeaderClassNames="text-sm font-medium text-muted-foreground uppercase"
                 viewClassNames="rounded-md"
                 slotMinTime="06:00:00"
-                slotMaxTime="22:00:00"
-                slotDuration="00:30:00"
+                slotMaxTime="24:00:00"
+                slotDuration="00:15:00"
                 scrollTime="08:00:00"
                 eventDisplay="block"
                 eventTimeFormat={{

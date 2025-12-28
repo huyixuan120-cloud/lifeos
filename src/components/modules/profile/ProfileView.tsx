@@ -6,6 +6,7 @@ import { useSession, signOut as authSignOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useFocusSessions } from "@/hooks/use-focus-sessions";
+import { useTheme } from "next-themes";
 import {
   User,
   CheckCircle,
@@ -123,10 +124,12 @@ export function ProfileView() {
     setShowClearDialog(false);
   };
 
+  const { theme, setTheme } = useTheme();
+
   const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-    // In a real app, this would toggle the actual theme
-    alert("Theme toggle - This would change the app theme in production!");
+    const newTheme = theme === "dark" ? "light" : "dark";
+    setTheme(newTheme);
+    setIsDarkMode(newTheme === "dark");
   };
 
   const handleLogout = async () => {

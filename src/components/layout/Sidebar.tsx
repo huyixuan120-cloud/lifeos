@@ -27,6 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CommandPalette } from "@/components/ui/CommandPalette";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useLifeOS } from "@/hooks/useLifeOS";
 import { createClient } from "@/utils/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -190,6 +191,9 @@ export function Sidebar() {
             {footerItems.map((item, index) => (
               <NavButton key={index} item={item} />
             ))}
+
+            {/* Theme Toggle */}
+            <ThemeToggle />
 
             {/* User Profile - Always visible */}
             {!isLoading && (

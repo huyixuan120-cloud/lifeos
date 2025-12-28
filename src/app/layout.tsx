@@ -4,6 +4,7 @@ import "./globals.css";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { LifeOSProvider } from "@/context/LifeOSContext";
 import { SessionProvider } from "next-auth/react";
+import { ThemeProvider } from "@/components/providers/theme-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,16 +31,23 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SessionProvider>
-          <LifeOSProvider>
-            <div className="flex h-screen overflow-hidden">
-              <Sidebar />
-              <main className="flex-1 ml-16 overflow-y-auto">
-                {children}
-              </main>
-            </div>
-          </LifeOSProvider>
-        </SessionProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          <SessionProvider>
+            <LifeOSProvider>
+              <div className="flex h-screen overflow-hidden">
+                <Sidebar />
+                <main className="flex-1 ml-16 overflow-y-auto">
+                  {children}
+                </main>
+              </div>
+            </LifeOSProvider>
+          </SessionProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

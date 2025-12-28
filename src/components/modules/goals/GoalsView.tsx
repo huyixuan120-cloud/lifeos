@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Pencil,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,10 +65,22 @@ const statusConfig: Record<GoalStatus, { label: string; color: string; icon: Rea
 
 export function GoalsView() {
   // Get real goals data from Supabase (with RLS)
-  const { goals, isLoading, addGoal, updateGoal, deleteGoal } = useGoals();
+  const { goals, isLoading, addGoal, updateGoal, deleteGoal, fetchGoals } = useGoals();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
+
+  // Auto-refresh goals when page becomes visible (e.g., after creating tasks)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchGoals();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [fetchGoals]);
 
   // Form state
   const [formTitle, setFormTitle] = useState("");
@@ -169,13 +182,24 @@ export function GoalsView() {
             </p>
           </div>
 
-          <Button
-            onClick={handleOpenCreateDialog}
-            className="bg-[#C97152] hover:bg-[#B8886B] text-white"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Goal
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => fetchGoals()}
+              variant="outline"
+              size="icon"
+              disabled={isLoading}
+              className="border-[#C97152] text-[#C97152] hover:bg-[#F5EFE7]"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button
+              onClick={handleOpenCreateDialog}
+              className="bg-[#C97152] hover:bg-[#B8886B] text-white"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Goal
+            </Button>
+          </div>
         </div>
 
         {/* Add/Edit Goal Dialog - UNIFIED for Create & Edit */}

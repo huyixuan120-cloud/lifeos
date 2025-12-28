@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, KeyboardEvent } from "react";
-import { Plus, Settings, ChevronDown, ChevronUp, Calendar } from "lucide-react";
+import { Plus, Settings, ChevronDown, ChevronUp, Calendar, Target } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import type { CreateTaskInput, TaskPriority } from "@/types/tasks";
 import { cn } from "@/lib/utils";
+import { useGoals } from "@/hooks/use-goals";
 
 interface UnifiedTaskInputProps {
   onAdd: (taskData: CreateTaskInput) => Promise<void>;
@@ -34,6 +35,7 @@ interface UnifiedTaskInputProps {
  * ```
  */
 export function UnifiedTaskInput({ onAdd }: UnifiedTaskInputProps) {
+  const { goals, isLoading: goalsLoading } = useGoals();
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -43,12 +45,19 @@ export function UnifiedTaskInput({ onAdd }: UnifiedTaskInputProps) {
   const [isUrgent, setIsUrgent] = useState(false);
   const [isImportant, setIsImportant] = useState(false);
   const [dueDate, setDueDate] = useState("");
+  const [goalId, setGoalId] = useState<string>("none");
 
   const handleAddTask = async () => {
     if (!newTaskTitle.trim()) return;
 
     try {
       setIsAdding(true);
+
+      // DEBUG: Log goal selection
+      console.log("🎯 Creating task with goalId:", goalId);
+      console.log("🎯 goalId === 'none'?", goalId === "none");
+      console.log("🎯 Final goal_id value:", goalId === "none" ? null : goalId);
+
       await onAdd({
         title: newTaskTitle.trim(),
         priority,
@@ -56,6 +65,7 @@ export function UnifiedTaskInput({ onAdd }: UnifiedTaskInputProps) {
         is_important: isImportant,
         is_completed: false,
         due_date: dueDate || null,
+        goal_id: goalId === "none" ? null : goalId,
       });
 
       // Reset form
@@ -64,6 +74,7 @@ export function UnifiedTaskInput({ onAdd }: UnifiedTaskInputProps) {
       setIsUrgent(false);
       setIsImportant(false);
       setDueDate("");
+      setGoalId("none");
       setShowAdvanced(false);
     } catch (error) {
       console.error("Failed to add task:", error);
@@ -125,7 +136,45 @@ export function UnifiedTaskInput({ onAdd }: UnifiedTaskInputProps) {
       {/* Expandable Advanced Options Panel */}
       {showAdvanced && (
         <div className="px-4 pb-4 pt-2 border-t bg-muted/30 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Goal Selector */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <Target className="h-3 w-3" />
+                Goal (Cartella)
+              </Label>
+              <Select value={goalId} onValueChange={setGoalId} disabled={goalsLoading}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder={goalsLoading ? "Caricamento..." : "Nessun Goal"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    <span className="text-muted-foreground">Nessun Goal</span>
+                  </SelectItem>
+                  {goalsLoading ? (
+                    <SelectItem value="loading" disabled>
+                      <span className="text-muted-foreground">Caricamento goals...</span>
+                    </SelectItem>
+                  ) : goals.length === 0 ? (
+                    <SelectItem value="empty" disabled>
+                      <span className="text-muted-foreground">Nessun goal disponibile</span>
+                    </SelectItem>
+                  ) : (
+                    goals.map((goal) => (
+                      <SelectItem key={goal.id} value={goal.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{goal.title}</span>
+                          <span className="text-xs text-muted-foreground">
+                            ({goal.progress}%)
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Priority Selector */}
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Priority</Label>

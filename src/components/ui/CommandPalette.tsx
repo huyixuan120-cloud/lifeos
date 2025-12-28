@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import {
   Search,
   LayoutGrid,
@@ -29,6 +30,7 @@ interface CommandItem {
 
 export function CommandPalette() {
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -113,7 +115,8 @@ export function CommandPalette() {
       icon: Moon,
       section: "actions",
       action: () => {
-        alert("Theme toggle - This would change the app theme in production!");
+        setTheme(theme === "dark" ? "light" : "dark");
+        setIsOpen(false);
       },
       keywords: ["dark", "light", "appearance"],
     },
