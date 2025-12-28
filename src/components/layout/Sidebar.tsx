@@ -191,66 +191,25 @@ export function Sidebar() {
               <NavButton key={index} item={item} />
             ))}
 
-            {/* Auth Section - Login or Logout */}
+            {/* User Profile - Always visible */}
             {!isLoading && (
               <>
                 <Separator className="w-10 my-2" />
-                {user ? (
-                  // Logged in - Show user avatar and logout button
-                  <>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="w-12 h-12 rounded-lg"
-                          asChild
-                        >
-                          <Link href="/profile">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#C97152] to-[#D4915E] flex items-center justify-center text-white font-semibold text-sm">
-                              {user.email?.charAt(0).toUpperCase()}
-                            </div>
-                          </Link>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">
-                        <p className="font-medium">{user.email}</p>
-                        <p className="text-xs text-muted-foreground">View Profile</p>
-                      </TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={handleLogout}
-                          className="w-12 h-12 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400"
-                        >
-                          <LogOut className="h-5 w-5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">
-                        <p>Logout</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </>
-                ) : (
-                  // Not logged in - Show login button
+                {user && (
+                  // Logged in - Show logout button
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={handleLogin}
-                        className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#C97152] to-[#D4915E] text-white hover:opacity-90"
+                        onClick={handleLogout}
+                        className="w-12 h-12 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400"
                       >
-                        <LogIn className="h-5 w-5" />
+                        <LogOut className="h-5 w-5" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="right">
-                      <p>Sign In</p>
-                      <p className="text-xs text-muted-foreground">Required for data sync</p>
+                      <p>Logout</p>
                     </TooltipContent>
                   </Tooltip>
                 )}

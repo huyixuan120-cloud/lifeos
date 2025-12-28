@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { createClient } from "@/utils/supabase/client";
 import type {
   LifeOSTask,
@@ -52,15 +53,31 @@ export function useTasks(): UseTasksReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Get NextAuth session
+  const { data: session, status } = useSession();
   const supabase = createClient();
 
   /**
-   * Fetches all tasks from Supabase
+   * Fetches all tasks from Supabase (filtered by logged-in user)
    */
   const fetchTasks = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
+
+      // Wait for auth to finish loading
+      if (status === "loading") {
+        console.log("⏳ Auth loading - waiting...");
+        return;
+      }
+
+      // Check if user is authenticated
+      if (!session?.user) {
+        console.log("⚠️ No authenticated user - skipping task fetch");
+        setTasks([]);
+        setIsLoading(false);
+        return;
+      }
 
       // Check if Supabase is properly configured
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -74,21 +91,42 @@ export function useTasks(): UseTasksReturn {
         return;
       }
 
+      console.log("📥 Fetching tasks for user:", session.user.id);
+
+      // FILTER BY USER_ID - Only fetch tasks for the logged-in user
       const { data, error: fetchError } = await supabase
         .from("tasks")
         .select("*")
+        .eq("user_id", session.user.id)
         .order("created_at", { ascending: false });
 
       if (fetchError) {
+        // Silent error handling for empty errors or missing table
+        const isEmpty = !fetchError.code && !fetchError.message && Object.keys(fetchError).length === 0;
+        const isMissingTable = fetchError.code === 'PGRST116' || fetchError.code === '42P01';
+
+        if (isEmpty) {
+          console.warn("⚠️ Empty error from Supabase - table may not exist or RLS blocking");
+          setTasks([]);
+          setIsLoading(false);
+          return;
+        }
+
+        if (isMissingTable) {
+          console.error("❌ Table 'tasks' does not exist in Supabase");
+          setTasks([]);
+          setIsLoading(false);
+          return;
+        }
+
+        // Log other errors normally
         console.error("Error fetching tasks:", fetchError);
         console.log("Full error object:", JSON.stringify(fetchError, null, 2));
 
-        // Handle different error scenarios
         const errorMessage = fetchError.message ||
           fetchError.details ||
-          (fetchError.code === "PGRST116" ? "Table 'tasks' does not exist. Please run the SQL schema in Supabase." :
-           fetchError.hint ||
-           "Failed to fetch tasks. Check Supabase setup and RLS policies.");
+          fetchError.hint ||
+          "Failed to fetch tasks. Check Supabase setup and RLS policies.";
 
         setError(errorMessage);
         return;
@@ -104,7 +142,7 @@ export function useTasks(): UseTasksReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, session, status]);
 
   /**
    * Adds a new task to Supabase
@@ -116,15 +154,25 @@ export function useTasks(): UseTasksReturn {
       try {
         setError(null);
 
-        // Get current authenticated user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        // Debug logging
+        console.log("🔍 addTask called - session status:", status);
+        console.log("🔍 session?.user:", session?.user);
+        console.log("🔍 session?.user?.id:", session?.user?.id);
+
+        // Check if auth is still loading
+        if (status === "loading") {
+          throw new Error("Authentication still loading. Please wait a moment.");
+        }
+
+        // Check if user is authenticated (NextAuth session)
+        if (status === "unauthenticated" || !session?.user?.id) {
+          console.error("❌ Not authenticated - status:", status, "user:", session?.user);
           throw new Error("Not authenticated. Please sign in to add tasks.");
         }
 
-        // Prepare data for database insertion (auto-inject user_id)
+        // Prepare data for database insertion (auto-inject user_id from NextAuth)
         const dbTask = {
-          user_id: user.id, // Auto-inject authenticated user's ID
+          user_id: session.user.id, // Use NextAuth user ID
           title: taskData.title,
           is_completed: taskData.is_completed ?? false,
           priority: taskData.priority ?? "medium",
@@ -133,7 +181,8 @@ export function useTasks(): UseTasksReturn {
           is_important: taskData.is_important ?? false,
         };
 
-        console.log("📤 Inserting task with data:", dbTask);
+        console.log("📤 Inserting task with NextAuth user:", session.user.id);
+        console.log("📤 Task data:", dbTask);
 
         const { data, error: insertError } = await supabase
           .from("tasks")
@@ -172,7 +221,7 @@ export function useTasks(): UseTasksReturn {
         throw err;
       }
     },
-    [supabase]
+    [supabase, session]
   );
 
   /**

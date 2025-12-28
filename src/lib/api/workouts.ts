@@ -33,7 +33,14 @@ export async function getWorkouts(): Promise<Workout[]> {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching workouts:', error);
+    // Silent error handling for missing table (PGRST116/42P01) or empty errors
+    // App will fallback to localStorage automatically
+    const isEmpty = !error.code && !error.message && Object.keys(error).length === 0;
+    const isMissingTable = error.code === 'PGRST116' || error.code === '42P01';
+
+    if (!isEmpty && !isMissingTable) {
+      console.error('Error fetching workouts:', error);
+    }
     return [];
   }
 
@@ -67,7 +74,13 @@ export async function createWorkout(
     .single();
 
   if (error) {
-    console.error('Error creating workout:', error);
+    // Silent error handling for missing table (PGRST116/42P01) or empty errors
+    const isEmpty = !error.code && !error.message && Object.keys(error).length === 0;
+    const isMissingTable = error.code === 'PGRST116' || error.code === '42P01';
+
+    if (!isEmpty && !isMissingTable) {
+      console.error('Error creating workout:', error);
+    }
     return null;
   }
 
@@ -92,7 +105,13 @@ export async function updateWorkout(
     .eq('id', workoutId);
 
   if (error) {
-    console.error('Error updating workout:', error);
+    // Silent error handling for missing table (PGRST116/42P01) or empty errors
+    const isEmpty = !error.code && !error.message && Object.keys(error).length === 0;
+    const isMissingTable = error.code === 'PGRST116' || error.code === '42P01';
+
+    if (!isEmpty && !isMissingTable) {
+      console.error('Error updating workout:', error);
+    }
     return false;
   }
 
@@ -109,7 +128,13 @@ export async function deleteWorkout(workoutId: string): Promise<boolean> {
     .eq('id', workoutId);
 
   if (error) {
-    console.error('Error deleting workout:', error);
+    // Silent error handling for missing table (PGRST116/42P01) or empty errors
+    const isEmpty = !error.code && !error.message && Object.keys(error).length === 0;
+    const isMissingTable = error.code === 'PGRST116' || error.code === '42P01';
+
+    if (!isEmpty && !isMissingTable) {
+      console.error('Error deleting workout:', error);
+    }
     return false;
   }
 

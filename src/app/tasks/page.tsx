@@ -6,19 +6,9 @@ import { TaskList } from "@/components/modules/tasks/TaskList";
 import { EisenhowerMatrix } from "@/components/modules/tasks/EisenhowerMatrix";
 import { TaskCreateDialog } from "@/components/modules/tasks/TaskCreateDialog";
 import { CompletedArchive } from "@/components/modules/tasks/CompletedArchive";
-import { createClient } from "@/utils/supabase/client";
 import type { LifeOSTask } from "@/types/tasks";
 
-/**
- * Tasks Page - SIMPLIFIED WITH PARANOID AUTH CHECK
- *
- * Strategy: Don't block the UI with auth guards.
- * Instead, check auth FRESH every time the user tries to do something.
- *
- * This prevents stale state issues and "not logged in" errors when the user IS logged in.
- */
 export default function TasksPage() {
-  const supabase = createClient();
   const { tasks, addTask, updateTask, deleteTask, toggleTask, isLoading, error } = useTasks();
 
   // Edit Dialog State
@@ -26,40 +16,11 @@ export default function TasksPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   /**
-   * PARANOID AUTH CHECK: Always check user fresh from Supabase
-   * This prevents stale state issues
-   */
-  const getAuthenticatedUser = async () => {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError) {
-      console.error("❌ Auth error:", authError);
-      return null;
-    }
-
-    if (!user) {
-      console.warn("⚠️ No user found in session");
-      return null;
-    }
-
-    console.log("✅ Authenticated user:", user.email, "ID:", user.id);
-    return user;
-  };
-
-  /**
-   * Add Task Handler - WITH PARANOID AUTH CHECK
+   * Add Task Handler
    */
   const handleAddTask = async (taskData: any) => {
     console.log("🚀 handleAddTask called with:", taskData);
 
-    // STEP 1: Get user FRESH from Supabase (no stale state!)
-    const user = await getAuthenticatedUser();
-    if (!user) {
-      alert("❌ Session expired or not logged in. Please refresh the page and log in again.");
-      return;
-    }
-
-    // STEP 2: Prepare task data
     const taskPayload = {
       title: taskData.title,
       priority: taskData.priority ?? "medium",
@@ -69,39 +30,21 @@ export default function TasksPage() {
       due_date: taskData.due_date ?? null,
     };
 
-    console.log("📤 Calling addTask with payload:", taskPayload);
-    console.log("👤 User ID that will be injected:", user.id);
-
-    // STEP 3: Call the hook's addTask (which will inject user_id)
     try {
       await addTask(taskPayload);
       console.log("✅ Task added successfully!");
     } catch (error) {
       console.error("❌ Failed to add task:", error);
-
-      // Show user-friendly error
       if (error instanceof Error) {
-        if (error.message.includes("Not authenticated")) {
-          alert("❌ Session expired. Please refresh the page and log in again.");
-        } else {
-          alert(`❌ Failed to add task: ${error.message}`);
-        }
-      } else {
-        alert("❌ Failed to add task. Check console for details.");
+        alert(`❌ Failed to add task: ${error.message}`);
       }
     }
   };
 
   /**
-   * Update Task Handler - WITH PARANOID AUTH CHECK
+   * Update Task Handler
    */
   const handleUpdateTask = async (taskId: string, updates: Partial<any>) => {
-    const user = await getAuthenticatedUser();
-    if (!user) {
-      alert("❌ Session expired. Please refresh and log in again.");
-      return;
-    }
-
     try {
       await updateTask({ id: taskId, ...updates });
       console.log("✅ Task updated successfully");
@@ -112,15 +55,9 @@ export default function TasksPage() {
   };
 
   /**
-   * Create Task from Matrix - WITH PARANOID AUTH CHECK
+   * Create Task from Matrix
    */
   const handleCreateTask = async (taskData: any) => {
-    const user = await getAuthenticatedUser();
-    if (!user) {
-      alert("❌ Session expired. Please refresh and log in again.");
-      return;
-    }
-
     try {
       await addTask({
         title: taskData.title,
@@ -138,15 +75,9 @@ export default function TasksPage() {
   };
 
   /**
-   * Toggle Task Completion - WITH PARANOID AUTH CHECK
+   * Toggle Task Completion
    */
   const handleToggleTask = async (taskId: string, isCompleted: boolean) => {
-    const user = await getAuthenticatedUser();
-    if (!user) {
-      alert("❌ Session expired. Please refresh and log in again.");
-      return;
-    }
-
     try {
       await toggleTask(taskId, isCompleted);
       console.log("✅ Task toggled successfully");
@@ -156,15 +87,9 @@ export default function TasksPage() {
   };
 
   /**
-   * Delete Task - WITH PARANOID AUTH CHECK
+   * Delete Task
    */
   const handleDeleteTask = async (taskId: string) => {
-    const user = await getAuthenticatedUser();
-    if (!user) {
-      alert("❌ Session expired. Please refresh and log in again.");
-      return;
-    }
-
     try {
       await deleteTask(taskId);
       console.log("✅ Task deleted successfully");
@@ -183,16 +108,10 @@ export default function TasksPage() {
   };
 
   /**
-   * Edit Submit Handler - WITH PARANOID AUTH CHECK
+   * Edit Submit Handler
    */
   const handleEditSubmit = async (taskData: any) => {
     if (!editingTask) return;
-
-    const user = await getAuthenticatedUser();
-    if (!user) {
-      alert("❌ Session expired. Please refresh and log in again.");
-      return;
-    }
 
     try {
       await updateTask({

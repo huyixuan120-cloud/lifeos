@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { createClient } from "@/utils/supabase/client";
 import type { Goal, GoalCategory, GoalStatus } from "@/types";
 
@@ -66,6 +67,8 @@ export function useGoals(): UseGoalsReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Get NextAuth session
+  const { data: session, status } = useSession();
   const supabase = createClient();
 
   /**
@@ -76,21 +79,47 @@ export function useGoals(): UseGoalsReturn {
       setIsLoading(true);
       setError(null);
 
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setError("Not authenticated");
+      // Wait for auth to finish loading
+      if (status === "loading") {
+        console.log("⏳ Auth loading - waiting...");
+        return;
+      }
+
+      // Check if user is authenticated
+      if (!session?.user) {
+        console.log("⚠️ No authenticated user - skipping goal fetch");
+        setGoals([]);
         setIsLoading(false);
         return;
       }
 
+      console.log("📥 Fetching goals for user:", session.user.id);
+
       const { data, error: fetchError } = await supabase
         .from("goals")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", session.user.id)
         .order("created_at", { ascending: false });
 
       if (fetchError) {
+        // Silent error handling for empty errors or missing table
+        const isEmpty = !fetchError.code && !fetchError.message && Object.keys(fetchError).length === 0;
+        const isMissingTable = fetchError.code === 'PGRST116' || fetchError.code === '42P01';
+
+        if (isEmpty) {
+          console.warn("⚠️ Empty error from Supabase - table may not exist or RLS blocking");
+          setGoals([]);
+          setIsLoading(false);
+          return;
+        }
+
+        if (isMissingTable) {
+          console.error("❌ Table 'goals' does not exist in Supabase");
+          setGoals([]);
+          setIsLoading(false);
+          return;
+        }
+
         console.error("Error fetching goals:", fetchError);
         setError(fetchError.message || "Failed to fetch goals");
         return;
@@ -117,11 +146,12 @@ export function useGoals(): UseGoalsReturn {
       }
     } catch (err) {
       console.error("Unexpected error fetching goals:", err);
-      setError("An unexpected error occurred");
+      const errorMessage = err instanceof Error ? err.message : "Failed to connect to database";
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, session, status]);
 
   /**
    * Adds a new goal
@@ -129,14 +159,26 @@ export function useGoals(): UseGoalsReturn {
   const addGoal = useCallback(
     async (goalData: CreateGoalInput) => {
       try {
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          throw new Error("Not authenticated");
+        setError(null);
+
+        console.log("🔍 addGoal called - session status:", status);
+        console.log("🔍 session?.user?.id:", session?.user?.id);
+
+        // Check if auth is still loading
+        if (status === "loading") {
+          throw new Error("Authentication still loading. Please wait a moment.");
         }
 
+        // Check if user is authenticated (NextAuth session)
+        if (status === "unauthenticated" || !session?.user?.id) {
+          console.error("❌ Not authenticated - status:", status, "user:", session?.user);
+          throw new Error("Not authenticated. Please sign in to add goals.");
+        }
+
+        console.log("📤 Inserting goal with NextAuth user:", session.user.id);
+
         const { error: insertError } = await supabase.from("goals").insert({
-          user_id: user.id,
+          user_id: session.user.id, // Use NextAuth user ID
           title: goalData.title,
           category: goalData.category,
           why: goalData.why || "",
@@ -148,18 +190,29 @@ export function useGoals(): UseGoalsReturn {
         });
 
         if (insertError) {
-          console.error("Error adding goal:", insertError);
-          throw insertError;
+          console.error("❌ Error adding goal:");
+          console.error("Error object:", insertError);
+          console.error("Error code:", insertError.code);
+          console.error("Error message:", insertError.message);
+
+          const errorMsg = insertError.message ||
+            (insertError.code === "42P01" ? "Table 'goals' does not exist. Please run the SQL migration in Supabase." :
+             "Failed to add goal. Check Supabase RLS policies and table structure.");
+
+          setError(errorMsg);
+          throw new Error(errorMsg);
         }
 
+        console.log("✅ Goal created successfully");
         // Refresh goals list
         await fetchGoals();
       } catch (err) {
-        console.error("Failed to add goal:", err);
+        console.error("Unexpected error adding goal:", err);
+        setError(err instanceof Error ? err.message : "Unknown error");
         throw err;
       }
     },
-    [supabase, fetchGoals]
+    [supabase, session, status, fetchGoals]
   );
 
   /**
