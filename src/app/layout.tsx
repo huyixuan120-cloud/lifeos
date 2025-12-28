@@ -20,6 +20,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "LifeOS - Your Personal Workspace",
   description: "A modular personal workspace for productivity and life management",
+  manifest: "/manifest.json",
   icons: {
     icon: "/logo.png",
     apple: "/logo.png",
