@@ -171,20 +171,20 @@ export default function TasksPage() {
   return (
     <div className="h-full bg-background flex flex-col">
       {/* Header */}
-      <div className="border-b px-6 py-4">
+      <div className="border-b px-6 py-3">
         <div>
           <h1 className="text-2xl font-semibold">Tasks</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-0.5">
             Manage and prioritize your tasks
           </p>
         </div>
       </div>
 
       {/* TWO-COLUMN LAYOUT: Left (Task Input + Completed) | Right (Eisenhower Matrix) */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6 h-full">
+      <div className="flex-1 overflow-auto p-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-4 h-full">
           {/* LEFT COLUMN: Task Input + Completed Tasks */}
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
             {/* Task Input */}
             <TaskList
               tasks={tasks as LifeOSTask[]}
@@ -196,9 +196,9 @@ export default function TasksPage() {
 
             {/* Completed Tasks Archive */}
             <div>
-              <div className="mb-4">
+              <div className="mb-2">
                 <h2 className="text-xl font-semibold">Completed Tasks</h2>
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-sm text-muted-foreground mt-0.5">
                   Tasks you've finished
                 </p>
               </div>
@@ -208,9 +208,9 @@ export default function TasksPage() {
 
           {/* RIGHT COLUMN: Eisenhower Matrix (Takes remaining space) */}
           <div className="flex flex-col">
-            <div className="mb-4">
+            <div className="mb-2">
               <h2 className="text-xl font-semibold">Eisenhower Matrix</h2>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-sm text-muted-foreground mt-0.5">
                 Prioritize tasks by urgency and importance
               </p>
             </div>
