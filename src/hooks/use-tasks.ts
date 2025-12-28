@@ -179,6 +179,7 @@ export function useTasks(): UseTasksReturn {
           due_date: taskData.due_date ?? null,
           is_urgent: taskData.is_urgent ?? false,
           is_important: taskData.is_important ?? false,
+          goal_id: taskData.goal_id ?? null, // Link to goal
         };
 
         console.log("📤 Inserting task with NextAuth user:", session.user.id);
@@ -242,6 +243,7 @@ export function useTasks(): UseTasksReturn {
         if (taskData.due_date !== undefined) updateData.due_date = taskData.due_date;
         if (taskData.is_urgent !== undefined) updateData.is_urgent = taskData.is_urgent;
         if (taskData.is_important !== undefined) updateData.is_important = taskData.is_important;
+        if (taskData.goal_id !== undefined) updateData.goal_id = taskData.goal_id;
 
         const { data, error: updateError } = await supabase
           .from("tasks")

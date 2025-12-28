@@ -112,7 +112,7 @@ export function TaskCreateDialog({
         is_important: isImportant,
         due_date: dueDate || null,
         is_completed: false,
-        goalId: goalId === "none" ? null : goalId, // Link to selected goal
+        goal_id: goalId === "none" ? null : goalId, // Link to selected goal
       };
 
       if (mode === "edit" && onSubmit) {
