@@ -196,7 +196,7 @@ export function useUserProfile(): UseUserProfileReturn {
         // If no profile exists, create one first
         if (!profile) {
           const name = updates.name || session.user.name || "LifeOS User";
-          const email = updates.email || session.user.email || null;
+          const email = updates.email || session.user.email || "";
           await createProfile(name, email);
           return;
         }
