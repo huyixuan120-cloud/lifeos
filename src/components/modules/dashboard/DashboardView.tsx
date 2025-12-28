@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { LifeOSTask } from "@/types/tasks";
 import { cn } from "@/lib/utils";
+import { HabitTracker } from "@/components/dashboard/HabitTracker";
 
 interface DashboardViewProps {
   tasks?: LifeOSTask[];
@@ -129,6 +130,13 @@ export function DashboardView({ tasks = [], events = [], onAddTask }: DashboardV
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Habit Tracker - Horizontal Scrollable */}
+        <Card className="border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 rounded-xl">
+          <CardContent className="p-6">
+            <HabitTracker />
           </CardContent>
         </Card>
 
