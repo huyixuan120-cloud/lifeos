@@ -14,6 +14,7 @@ import {
   TaskEffort,
 } from "@/types";
 import { useTimerSettings } from "@/hooks/use-timer-settings";
+import { useSound } from "@/hooks/use-sound";
 
 // =============================================================================
 // CONTEXT TYPE DEFINITION
@@ -222,6 +223,9 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
     error: timerSettingsError,
     updateSettings: updateTimerSettingsDB
   } = useTimerSettings();
+
+  // Sound effects for timer completion
+  const { playSound } = useSound();
 
   // Focus Timer State (Persists across page navigations)
   const [timerState, setTimerState] = useState<FocusTimerState>({
@@ -608,8 +612,12 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
     const currentMode = timerState.mode;
     const durationInMinutes = Math.floor(timerState.duration / 60);
 
-    // Play alarm sound
-    playAlarm();
+    // Play mode-specific sound
+    if (currentMode === "pomodoro") {
+      playSound("work_complete"); // Satisfying ding for focus completion
+    } else {
+      playSound("break_complete"); // Softer sound for break completion
+    }
 
     // Save focus session (without XP gamification)
     addFocusSession(durationInMinutes, timerState.taskId || undefined);
@@ -625,12 +633,12 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
         ? timerSettings.longBreakDuration * 60
         : timerSettings.shortBreakDuration * 60;
 
-      // Show notification
+      // Show notification with tomato emoji
       showNotification(
-        "🎉 Pomodoro Complete!",
+        "Focus Session Complete! 🍅",
         nextMode === "longBreak"
-          ? "Great work! Time for a long break."
-          : "Well done! Take a short break."
+          ? `Amazing! You've completed ${newPomodorosCompleted} pomodoros. Time for a well-deserved long break!`
+          : `Great work! Pomodoro #${newPomodorosCompleted} done. Take a short break.`
       );
 
       console.log(`🎉 Pomodoro #${newPomodorosCompleted} complete! Switching to ${nextMode}`);
@@ -649,8 +657,8 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
       const pomodoroDuration = timerSettings.pomodoroDuration * 60;
 
       showNotification(
-        "☕ Break Over!",
-        "Ready to focus? Let's get back to work!"
+        "Break Complete! ☕",
+        "Refreshed and ready? Let's get back to focused work!"
       );
 
       console.log(`☕ ${currentMode} complete! Switching to pomodoro`);
@@ -668,7 +676,7 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
     setTimeout(() => {
       hasCompletedRef.current = false;
     }, 1000);
-  }, [timerState.mode, timerState.duration, timerState.taskId, timerState.pomodorosCompleted, timerSettings, addFocusSession, showNotification, playAlarm]);
+  }, [timerState.mode, timerState.duration, timerState.taskId, timerState.pomodorosCompleted, timerSettings, addFocusSession, showNotification, playSound]);
 
   /**
    * The Heartbeat - Timer countdown logic

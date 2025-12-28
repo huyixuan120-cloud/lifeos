@@ -6,6 +6,7 @@ import { MobileNav } from "@/components/MobileNav";
 import { LifeOSProvider } from "@/context/LifeOSContext";
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { NotificationProvider } from "@/components/providers/notification-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -45,13 +46,15 @@ export default function RootLayout({
         >
           <SessionProvider>
             <LifeOSProvider>
-              <div className="flex h-screen overflow-hidden">
-                <Sidebar />
-                <main className="flex-1 ml-0 md:ml-16 overflow-y-auto pb-20 md:pb-0">
-                  {children}
-                </main>
-                <MobileNav />
-              </div>
+              <NotificationProvider>
+                <div className="flex h-screen overflow-hidden">
+                  <Sidebar />
+                  <main className="flex-1 ml-0 md:ml-16 overflow-y-auto pb-20 md:pb-0">
+                    {children}
+                  </main>
+                  <MobileNav />
+                </div>
+              </NotificationProvider>
             </LifeOSProvider>
           </SessionProvider>
         </ThemeProvider>
