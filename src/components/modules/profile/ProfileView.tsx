@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useLifeOS } from "@/hooks/useLifeOS";
-import { useSession, signOut as authSignOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
+import type { User } from "@supabase/supabase-js";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useFocusSessions } from "@/hooks/use-focus-sessions";
 import { useTheme } from "next-themes";
 import {
-  User,
+  User as UserIcon,
   CheckCircle,
   Clock,
   Flame,
@@ -44,11 +45,31 @@ interface StatCard {
 
 export function ProfileView() {
   const router = useRouter();
+  const supabase = createClient();
 
-  // Auth.js session
-  const { data: session, status } = useSession();
-  const isAuthenticated = status === "authenticated";
-  const isCheckingAuth = status === "loading";
+  // Supabase Auth user
+  const [user, setUser] = useState<User | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  // Get Supabase Auth user
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      setIsCheckingAuth(false);
+    };
+    getUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setIsCheckingAuth(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase]);
+
+  const isAuthenticated = !!user;
 
   // Get real data from Supabase
   const { profile, isLoading: isLoadingProfile, updateProfile, createProfile } = useUserProfile();
@@ -134,7 +155,10 @@ export function ProfileView() {
 
   const handleLogout = async () => {
     try {
-      await authSignOut({ callbackUrl: "/login" });
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      router.push("/login");
+      router.refresh();
     } catch (err) {
       console.error("Logout error:", err);
       alert("An error occurred during logout. Please try again.");
@@ -152,8 +176,8 @@ export function ProfileView() {
       .slice(0, 2);
   };
 
-  const userName = profile?.name || session?.user?.name || "LifeOS User";
-  const memberSince = profile?.member_since || new Date().toISOString();
+  const userName = profile?.name || user?.user_metadata?.full_name || user?.email || "LifeOS User";
+  const memberSince = profile?.member_since || user?.created_at || new Date().toISOString();
 
   return (
     <div className="h-full w-full overflow-auto bg-gradient-to-br from-[#FAF9F7] via-[#FEFDFB] to-[#F5EFE7] dark:from-[#2A2420] dark:via-[#2A2420] dark:to-[#342E28]">
@@ -163,7 +187,7 @@ export function ProfileView() {
           <Card className="border-2 border-[#C97152] bg-gradient-to-br from-[#F5EFE7] via-[#FAF9F7] to-[#F5EFE7] dark:from-[#3E3530] dark:via-[#342E28] dark:to-[#3E3530] rounded-xl shadow-lg">
             <CardContent className="p-8 text-center space-y-6">
               <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-[#C97152] to-[#D4915E] flex items-center justify-center">
-                <User className="h-10 w-10 text-white" />
+                <UserIcon className="h-10 w-10 text-white" />
               </div>
               <div>
                 <h2 className="text-2xl font-bold mb-2 bg-gradient-to-r from-[#C97152] to-[#D4915E] bg-clip-text text-transparent">
@@ -243,7 +267,7 @@ export function ProfileView() {
         {/* Section 2: Productivity Stats */}
         <div>
           <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-            <User className="h-6 w-6 text-[#C97152]" />
+            <UserIcon className="h-6 w-6 text-[#C97152]" />
             Productivity Stats
           </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -275,7 +299,7 @@ export function ProfileView() {
           <Card className="rounded-xl">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <User className="h-6 w-6 text-[#C97152]" />
+                <UserIcon className="h-6 w-6 text-[#C97152]" />
                 System Preferences
               </CardTitle>
             </CardHeader>

@@ -37,8 +37,10 @@ export async function getWorkouts(): Promise<Workout[]> {
     // App will fallback to localStorage automatically
     const isEmpty = !error.code && !error.message && Object.keys(error).length === 0;
     const isMissingTable = error.code === 'PGRST116' || error.code === '42P01';
+    const hasNoMessage = !error.message;
 
-    if (!isEmpty && !isMissingTable) {
+    // Only log if it's a real error (not empty, not missing table, and has a message)
+    if (!isEmpty && !isMissingTable && !hasNoMessage) {
       console.error('Error fetching workouts:', error);
     }
     return [];
@@ -77,8 +79,10 @@ export async function createWorkout(
     // Silent error handling for missing table (PGRST116/42P01) or empty errors
     const isEmpty = !error.code && !error.message && Object.keys(error).length === 0;
     const isMissingTable = error.code === 'PGRST116' || error.code === '42P01';
+    const hasNoMessage = !error.message;
 
-    if (!isEmpty && !isMissingTable) {
+    // Only log if it's a real error (not empty, not missing table, and has a message)
+    if (!isEmpty && !isMissingTable && !hasNoMessage) {
       console.error('Error creating workout:', error);
     }
     return null;
@@ -108,8 +112,10 @@ export async function updateWorkout(
     // Silent error handling for missing table (PGRST116/42P01) or empty errors
     const isEmpty = !error.code && !error.message && Object.keys(error).length === 0;
     const isMissingTable = error.code === 'PGRST116' || error.code === '42P01';
+    const hasNoMessage = !error.message;
 
-    if (!isEmpty && !isMissingTable) {
+    // Only log if it's a real error (not empty, not missing table, and has a message)
+    if (!isEmpty && !isMissingTable && !hasNoMessage) {
       console.error('Error updating workout:', error);
     }
     return false;
@@ -131,8 +137,10 @@ export async function deleteWorkout(workoutId: string): Promise<boolean> {
     // Silent error handling for missing table (PGRST116/42P01) or empty errors
     const isEmpty = !error.code && !error.message && Object.keys(error).length === 0;
     const isMissingTable = error.code === 'PGRST116' || error.code === '42P01';
+    const hasNoMessage = !error.message;
 
-    if (!isEmpty && !isMissingTable) {
+    // Only log if it's a real error (not empty, not missing table, and has a message)
+    if (!isEmpty && !isMissingTable && !hasNoMessage) {
       console.error('Error deleting workout:', error);
     }
     return false;

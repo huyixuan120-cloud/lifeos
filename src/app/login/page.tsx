@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
+  const supabase = createClient();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -22,21 +25,26 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const result = await signIn("credentials", {
+      // Sign in with Supabase Auth
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
-        redirect: false,
       });
 
-      if (result?.error) {
+      if (signInError) {
         setError("Invalid email or password");
-      } else {
-        // Redirect to tasks page after successful login
-        window.location.href = "/tasks";
+        setIsLoading(false);
+        return;
       }
+
+      // Success! Redirect to dashboard
+      console.log("✅ Login successful! User:", data.user.id);
+      router.push("/");
+      router.refresh();
+
     } catch (err) {
+      console.error("Login error:", err);
       setError("An error occurred. Please try again.");
-    } finally {
       setIsLoading(false);
     }
   };
@@ -60,11 +68,12 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="test@example.com"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="h-11"
+                autoComplete="email"
               />
             </div>
 
@@ -79,6 +88,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="h-11"
+                autoComplete="current-password"
               />
             </div>
 
@@ -107,21 +117,22 @@ export default function LoginPage() {
               )}
             </Button>
 
-            {/* Demo Credentials */}
+            {/* Sign Up Link */}
             <div className="pt-4 space-y-2">
-              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-lg">
-                <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-2">
-                  🔑 Demo Credentials:
-                </p>
-                <div className="text-xs text-blue-700 dark:text-blue-400 space-y-1">
-                  <p>Email: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">test@example.com</code></p>
-                  <p>Password: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">password123</code></p>
-                </div>
-              </div>
+              <Link href="/signup">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                >
+                  Don't have an account? Sign up
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
 
               <div className="p-2 bg-[#F5EFE7] dark:bg-[#3E3530] border border-[#D4915E]/30 dark:border-[#8B7355]/30 rounded-lg">
                 <p className="text-xs text-[#8B7355] dark:text-[#B8AFA6] text-center">
-                  🔒 Secured with Auth.js v5
+                  🔒 Secured with Supabase Auth
                 </p>
               </div>
             </div>

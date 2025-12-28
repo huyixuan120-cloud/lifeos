@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
 import { createClient } from "@/utils/supabase/client";
+import type { User } from "@supabase/supabase-js";
 import type { Goal, GoalCategory, GoalStatus } from "@/types";
 
 interface CreateGoalInput {
@@ -66,10 +66,25 @@ export function useGoals(): UseGoalsReturn {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
-  // Get NextAuth session
-  const { data: session, status } = useSession();
   const supabase = createClient();
+
+  // Get Supabase Auth user
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase]);
 
   /**
    * Fetches all goals for the current user
@@ -79,26 +94,20 @@ export function useGoals(): UseGoalsReturn {
       setIsLoading(true);
       setError(null);
 
-      // Wait for auth to finish loading
-      if (status === "loading") {
-        console.log("⏳ Auth loading - waiting...");
-        return;
-      }
-
       // Check if user is authenticated
-      if (!session?.user) {
+      if (!user) {
         console.log("⚠️ No authenticated user - skipping goal fetch");
         setGoals([]);
         setIsLoading(false);
         return;
       }
 
-      console.log("📥 Fetching goals for user:", session.user.id);
+      console.log("📥 Fetching goals for user:", user.id);
 
       const { data, error: fetchError } = await supabase
         .from("goals")
         .select("*")
-        .eq("user_id", session.user.id)
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
       if (fetchError) {
@@ -159,7 +168,7 @@ export function useGoals(): UseGoalsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [supabase, session, status]);
+  }, [supabase, user]);
 
   /**
    * Adds a new goal
@@ -169,24 +178,18 @@ export function useGoals(): UseGoalsReturn {
       try {
         setError(null);
 
-        console.log("🔍 addGoal called - session status:", status);
-        console.log("🔍 session?.user?.id:", session?.user?.id);
+        console.log("🔍 addGoal called - user:", user?.id);
 
-        // Check if auth is still loading
-        if (status === "loading") {
-          throw new Error("Authentication still loading. Please wait a moment.");
-        }
-
-        // Check if user is authenticated (NextAuth session)
-        if (status === "unauthenticated" || !session?.user?.id) {
-          console.error("❌ Not authenticated - status:", status, "user:", session?.user);
+        // Check if user is authenticated
+        if (!user) {
+          console.error("❌ Not authenticated");
           throw new Error("Not authenticated. Please sign in to add goals.");
         }
 
-        console.log("📤 Inserting goal with NextAuth user:", session.user.id);
+        console.log("📤 Inserting goal with Supabase Auth user:", user.id);
 
         const { error: insertError } = await supabase.from("goals").insert({
-          user_id: session.user.id, // Use NextAuth user ID
+          user_id: user.id, // Use Supabase Auth user ID
           title: goalData.title,
           category: goalData.category,
           why: goalData.why || "",
@@ -220,7 +223,7 @@ export function useGoals(): UseGoalsReturn {
         throw err;
       }
     },
-    [supabase, session, status, fetchGoals]
+    [supabase, user, fetchGoals]
   );
 
   /**

@@ -176,7 +176,7 @@ export function Sidebar() {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <aside className="fixed left-0 top-0 z-40 h-screen w-16 border-r bg-background">
+      <aside className="hidden md:flex fixed left-0 top-0 z-40 h-screen w-16 border-r bg-background">
         <div className="flex h-full flex-col items-center justify-between py-4">
           {/* Top Navigation Icons */}
           <nav className="flex flex-col items-center gap-2">

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { MobileNav } from "@/components/MobileNav";
 import { LifeOSProvider } from "@/context/LifeOSContext";
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "@/components/providers/theme-provider";
@@ -41,9 +42,10 @@ export default function RootLayout({
             <LifeOSProvider>
               <div className="flex h-screen overflow-hidden">
                 <Sidebar />
-                <main className="flex-1 ml-16 overflow-y-auto">
+                <main className="flex-1 ml-0 md:ml-16 overflow-y-auto pb-20 md:pb-0">
                   {children}
                 </main>
+                <MobileNav />
               </div>
             </LifeOSProvider>
           </SessionProvider>
