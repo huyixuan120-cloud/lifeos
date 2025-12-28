@@ -180,11 +180,12 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* VERTICAL SINGLE-COLUMN LAYOUT */}
+      {/* TWO-COLUMN LAYOUT: Left (Task Input + Completed) | Right (Eisenhower Matrix) */}
       <div className="flex-1 overflow-auto p-6">
-        <div className="max-w-6xl mx-auto space-y-12">
-          {/* Section A: Task Input + Task List (Full Width) */}
+        <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6 h-full">
+          {/* LEFT COLUMN: Task Input + Completed Tasks */}
           <div className="flex flex-col gap-6">
+            {/* Task Input */}
             <TaskList
               tasks={tasks as LifeOSTask[]}
               onAdd={handleAddTask}
@@ -192,17 +193,28 @@ export default function TasksPage() {
               onDelete={handleDeleteTask}
               onEdit={handleEditTask}
             />
+
+            {/* Completed Tasks Archive */}
+            <div>
+              <div className="mb-4">
+                <h2 className="text-xl font-semibold">Completed Tasks</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Tasks you've finished
+                </p>
+              </div>
+              <CompletedArchive tasks={tasks as LifeOSTask[]} />
+            </div>
           </div>
 
-          {/* Section B: Eisenhower Matrix (Full Width, generous spacing above) */}
-          <div className="mt-16">
+          {/* RIGHT COLUMN: Eisenhower Matrix (Takes remaining space) */}
+          <div className="flex flex-col">
             <div className="mb-4">
               <h2 className="text-xl font-semibold">Eisenhower Matrix</h2>
               <p className="text-sm text-muted-foreground mt-1">
                 Prioritize tasks by urgency and importance
               </p>
             </div>
-            <div className="overflow-hidden rounded-lg border bg-card">
+            <div className="flex-1 overflow-hidden rounded-lg border bg-card">
               <EisenhowerMatrix
                 tasks={tasks as LifeOSTask[]}
                 onUpdateTask={handleUpdateTask}
@@ -210,17 +222,6 @@ export default function TasksPage() {
                 compact={false}
               />
             </div>
-          </div>
-
-          {/* Section C: Completed Tasks Archive (Full Width, generous spacing above) */}
-          <div className="mt-16">
-            <div className="mb-4">
-              <h2 className="text-xl font-semibold">Completed Tasks</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Tasks you've finished
-              </p>
-            </div>
-            <CompletedArchive tasks={tasks as LifeOSTask[]} />
           </div>
         </div>
       </div>
