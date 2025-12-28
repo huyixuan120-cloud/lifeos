@@ -120,6 +120,14 @@ export function useGoals(): UseGoalsReturn {
           return;
         }
 
+        // Handle any other errors - if message is empty, treat as silent error
+        if (!fetchError.message) {
+          console.warn("⚠️ Empty error from Supabase - table may not exist");
+          setGoals([]);
+          setIsLoading(false);
+          return;
+        }
+
         console.error("Error fetching goals:", fetchError);
         setError(fetchError.message || "Failed to fetch goals");
         return;

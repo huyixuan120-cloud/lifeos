@@ -31,8 +31,8 @@ export default function LoginPage() {
       if (result?.error) {
         setError("Invalid email or password");
       } else {
-        router.push("/");
-        router.refresh();
+        // Redirect to tasks page after successful login
+        window.location.href = "/tasks";
       }
     } catch (err) {
       setError("An error occurred. Please try again.");

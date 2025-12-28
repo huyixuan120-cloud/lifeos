@@ -4,9 +4,9 @@ import type { NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Protected routes
-  const protectedRoutes = ["/tasks", "/calendar", "/goals", "/focus", "/profile", "/training"];
-  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+  // Protected routes (including root dashboard)
+  const protectedRoutes = ["/", "/tasks", "/calendar", "/goals", "/focus", "/profile", "/training"];
+  const isProtectedRoute = protectedRoutes.some(route => pathname === route || pathname.startsWith(route + "/"));
 
   if (isProtectedRoute) {
     // Check if user has auth session cookie

@@ -14,8 +14,6 @@ import {
   TaskEffort,
 } from "@/types";
 import { useTimerSettings } from "@/hooks/use-timer-settings";
-import { useFocusSessions } from "@/hooks/use-focus-sessions";
-import { useUserProfile } from "@/hooks/use-user-profile";
 
 // =============================================================================
 // CONTEXT TYPE DEFINITION
@@ -224,12 +222,6 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
     error: timerSettingsError,
     updateSettings: updateTimerSettingsDB
   } = useTimerSettings();
-
-  // Focus Sessions (Supabase persistence)
-  const { addSession: saveSessionToSupabase } = useFocusSessions();
-
-  // User Profile (Supabase persistence)
-  const { profile: supabaseProfile, updateProfile: updateSupabaseProfile } = useUserProfile();
 
   // Focus Timer State (Persists across page navigations)
   const [timerState, setTimerState] = useState<FocusTimerState>({
@@ -522,7 +514,7 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
   // FOCUS SESSION MANAGEMENT
   // ===========================================================================
 
-  const addFocusSession = useCallback(async (minutes: number, taskId?: string) => {
+  const addFocusSession = useCallback((minutes: number, taskId?: string) => {
     const newSession: FocusSession = {
       id: `session-${Date.now()}`,
       minutes,
@@ -539,25 +531,8 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
       focusMinutes: prev.focusMinutes + minutes,
     }));
 
-    // Save to Supabase
-    try {
-      await saveSessionToSupabase({
-        task_id: taskId || null,
-        minutes,
-        mode: timerState.mode,
-        completed: true,
-      });
-
-      // Update user profile in Supabase with new focus minutes
-      const newTotalMinutes = (supabaseProfile?.focus_minutes || 0) + minutes;
-      await updateSupabaseProfile({ focus_minutes: newTotalMinutes });
-
-      console.log(`🎯 Focus session saved to Supabase! (${minutes} minutes)`);
-    } catch (error) {
-      console.error("Failed to save focus session to Supabase:", error);
-      // Don't block the UI - session is saved locally
-    }
-  }, [saveSessionToSupabase, updateSupabaseProfile, supabaseProfile, timerState.mode]);
+    console.log(`🎯 Focus session completed! (${minutes} minutes)`);
+  }, []);
 
   // ===========================================================================
   // FOCUS TIMER CONTROL (Persistent Timer)
