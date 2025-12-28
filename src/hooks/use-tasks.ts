@@ -116,15 +116,21 @@ export function useTasks(): UseTasksReturn {
       try {
         setError(null);
 
-        // Prepare data for database insertion
+        // Get current authenticated user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          throw new Error("Not authenticated. Please sign in to add tasks.");
+        }
+
+        // Prepare data for database insertion (auto-inject user_id)
         const dbTask = {
+          user_id: user.id, // Auto-inject authenticated user's ID
           title: taskData.title,
           is_completed: taskData.is_completed ?? false,
           priority: taskData.priority ?? "medium",
           due_date: taskData.due_date ?? null,
           is_urgent: taskData.is_urgent ?? false,
           is_important: taskData.is_important ?? false,
-          user_id: taskData.user_id ?? null,
         };
 
         const { data, error: insertError } = await supabase
