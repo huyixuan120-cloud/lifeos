@@ -4,7 +4,6 @@ import { useState } from "react";
 import { LifeOSTask, PRIORITY_COLORS } from "@/types/tasks";
 import { Plus, CheckCircle2, Circle, Clock, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +22,6 @@ export interface EisenhowerTask extends LifeOSTask {
 interface Quadrant {
   id: "q1" | "q2" | "q3" | "q4";
   title: string;
-  emoji: string;
   description: string;
   isUrgent: boolean;
   isImportant: boolean;
@@ -40,43 +38,39 @@ const QUADRANTS: Quadrant[] = [
   {
     id: "q1",
     title: "Do First",
-    emoji: "🔥",
     description: "Urgent & Important",
     isUrgent: true,
     isImportant: true,
-    bgColor: "bg-rose-50",
-    borderColor: "border-rose-400",
-    textColor: "text-rose-900",
-    iconColor: "text-rose-600",
+    bgColor: "bg-[#FCE8E6]",
+    borderColor: "border-[#C97152]",
+    textColor: "text-[#8B4513]",
+    iconColor: "text-[#C97152]",
   },
   {
     id: "q2",
     title: "Schedule",
-    emoji: "📅",
     description: "Important, Not Urgent",
     isUrgent: false,
     isImportant: true,
-    bgColor: "bg-sky-50",
-    borderColor: "border-sky-400",
-    textColor: "text-sky-900",
-    iconColor: "text-sky-600",
+    bgColor: "bg-[#F9F6F1]",
+    borderColor: "border-[#A86F4C]",
+    textColor: "text-[#5D4E37]",
+    iconColor: "text-[#A86F4C]",
   },
   {
     id: "q3",
     title: "Delegate",
-    emoji: "🤝",
     description: "Urgent, Not Important",
     isUrgent: true,
     isImportant: false,
-    bgColor: "bg-emerald-50",
-    borderColor: "border-emerald-400",
-    textColor: "text-emerald-900",
-    iconColor: "text-emerald-600",
+    bgColor: "bg-[#E8F5E9]",
+    borderColor: "border-[#6B8E6F]",
+    textColor: "text-[#3E5C3F]",
+    iconColor: "text-[#6B8E6F]",
   },
   {
     id: "q4",
     title: "Eliminate",
-    emoji: "🗑️",
     description: "Not Urgent, Not Important",
     isUrgent: false,
     isImportant: false,
@@ -283,16 +277,6 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
 
   return (
     <div className={cn("h-full flex flex-col", compact ? "p-3" : "")}>
-      {/* Header */}
-      <div className={cn(compact ? "mb-3" : "mb-6")}>
-        <h2 className={cn("font-bold tracking-tight", compact ? "text-lg" : "text-2xl")}>
-          Eisenhower Matrix
-        </h2>
-        <p className={cn("text-muted-foreground", compact ? "text-xs mt-0.5" : "text-sm mt-1")}>
-          {compact ? "Prioritize by urgency" : "Prioritize tasks by urgency and importance"}
-        </p>
-      </div>
-
       {/* The 2x2 Grid with Axes */}
       <div className={cn(
         "grid flex-1 min-h-0",
@@ -308,7 +292,7 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
           "flex items-center justify-center font-bold uppercase tracking-wider",
           compact ? "text-[10px] pb-1" : "text-xs pb-2"
         )}>
-          <div className="flex items-center gap-1.5 text-red-600">
+          <div className="flex items-center gap-1.5 text-[#C97152]">
             <span className={compact ? "text-sm" : "text-base"}>⚡</span>
             <span>Urgent</span>
           </div>
@@ -317,7 +301,7 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
           "flex items-center justify-center font-bold uppercase tracking-wider",
           compact ? "text-[10px] pb-1" : "text-xs pb-2"
         )}>
-          <div className="flex items-center gap-1.5 text-blue-600">
+          <div className="flex items-center gap-1.5 text-[#A86F4C]">
             <span className={compact ? "text-sm" : "text-base"}>🐢</span>
             <span>Not Urgent</span>
           </div>
@@ -328,7 +312,7 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
           "flex items-center justify-center font-bold uppercase tracking-wider",
           compact ? "text-[10px] pr-1" : "text-xs pr-2"
         )}>
-          <div className="flex items-center gap-1.5 text-blue-600" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
+          <div className="flex items-center gap-1.5 text-[#A86F4C]" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
             <span className={compact ? "text-sm" : "text-base"}>💎</span>
             <span>Important</span>
           </div>
@@ -338,28 +322,26 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
           const quadrant = QUADRANTS[0]; // Q1
           const quadrantTasks = getTasksForQuadrant(incompleteTasks, quadrant);
           return (
-            <Card
+            <div
               key={quadrant.id}
               className={cn(
-                "flex flex-col border-t-4 transition-all",
+                "flex flex-col border-l-4 rounded-lg transition-all",
                 quadrant.bgColor,
-                quadrant.borderColor
+                quadrant.borderColor,
+                compact ? "p-2" : "p-4"
               )}
             >
-              <CardHeader className={cn(compact ? "p-2 pb-1" : "pb-3")}>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={cn(compact ? "text-base" : "text-2xl")}>{quadrant.emoji}</span>
-                    <div>
-                      <h3 className={cn("font-bold", quadrant.textColor, compact ? "text-xs" : "text-lg")}>
-                        {quadrant.title}
-                      </h3>
-                      {!compact && (
-                        <p className="text-xs text-muted-foreground font-normal">
-                          {quadrant.description}
-                        </p>
-                      )}
-                    </div>
+              <div className={cn(compact ? "pb-1" : "pb-3")}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className={cn("font-bold", quadrant.textColor, compact ? "text-xs" : "text-lg")}>
+                      {quadrant.title}
+                    </h3>
+                    {!compact && (
+                      <p className="text-xs text-muted-foreground font-normal">
+                        {quadrant.description}
+                      </p>
+                    )}
                   </div>
                   <div className={cn(
                     "flex items-center justify-center rounded-full",
@@ -370,9 +352,9 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                   )}>
                     {quadrantTasks.length}
                   </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className={cn("flex-1 flex flex-col min-h-0", compact ? "p-2 pt-0" : "pb-3")}>
+                </div>
+              </div>
+              <div className={cn("flex-1 flex flex-col min-h-0", compact ? "pt-0" : "")}>
                 <div className={cn("flex-1 overflow-y-auto pr-1", compact ? "space-y-1" : "space-y-2")}>
                   {quadrantTasks.length === 0 ? (
                     <div className={cn("flex flex-col items-center justify-center text-center", compact ? "h-16" : "h-32")}>
@@ -399,8 +381,8 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                     {creatingInQuadrant === quadrant.id ? "Adding..." : "Quick Add"}
                   </Button>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           );
         })()}
         {/* Q2: Important, Not Urgent */}
@@ -408,28 +390,26 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
           const quadrant = QUADRANTS[1]; // Q2
           const quadrantTasks = getTasksForQuadrant(incompleteTasks, quadrant);
           return (
-            <Card
+            <div
               key={quadrant.id}
               className={cn(
-                "flex flex-col border-t-4 transition-all",
+                "flex flex-col border-l-4 rounded-lg transition-all",
                 quadrant.bgColor,
-                quadrant.borderColor
+                quadrant.borderColor,
+                compact ? "p-2" : "p-4"
               )}
             >
-              <CardHeader className={cn(compact ? "p-2 pb-1" : "pb-3")}>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={cn(compact ? "text-base" : "text-2xl")}>{quadrant.emoji}</span>
-                    <div>
-                      <h3 className={cn("font-bold", quadrant.textColor, compact ? "text-xs" : "text-lg")}>
-                        {quadrant.title}
-                      </h3>
-                      {!compact && (
-                        <p className="text-xs text-muted-foreground font-normal">
-                          {quadrant.description}
-                        </p>
-                      )}
-                    </div>
+              <div className={cn(compact ? "pb-1" : "pb-3")}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className={cn("font-bold", quadrant.textColor, compact ? "text-xs" : "text-lg")}>
+                      {quadrant.title}
+                    </h3>
+                    {!compact && (
+                      <p className="text-xs text-muted-foreground font-normal">
+                        {quadrant.description}
+                      </p>
+                    )}
                   </div>
                   <div className={cn(
                     "flex items-center justify-center rounded-full",
@@ -440,9 +420,9 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                   )}>
                     {quadrantTasks.length}
                   </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className={cn("flex-1 flex flex-col min-h-0", compact ? "p-2 pt-0" : "pb-3")}>
+                </div>
+              </div>
+              <div className={cn("flex-1 flex flex-col min-h-0", compact ? "pt-0" : "")}>
                 <div className={cn("flex-1 overflow-y-auto pr-1", compact ? "space-y-1" : "space-y-2")}>
                   {quadrantTasks.length === 0 ? (
                     <div className={cn("flex flex-col items-center justify-center text-center", compact ? "h-16" : "h-32")}>
@@ -469,8 +449,8 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                     {creatingInQuadrant === quadrant.id ? "Adding..." : "Quick Add"}
                   </Button>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           );
         })()}
 
@@ -489,28 +469,26 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
           const quadrant = QUADRANTS[2]; // Q3
           const quadrantTasks = getTasksForQuadrant(incompleteTasks, quadrant);
           return (
-            <Card
+            <div
               key={quadrant.id}
               className={cn(
-                "flex flex-col border-t-4 transition-all",
+                "flex flex-col border-l-4 rounded-lg transition-all",
                 quadrant.bgColor,
-                quadrant.borderColor
+                quadrant.borderColor,
+                compact ? "p-2" : "p-4"
               )}
             >
-              <CardHeader className={cn(compact ? "p-2 pb-1" : "pb-3")}>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={cn(compact ? "text-base" : "text-2xl")}>{quadrant.emoji}</span>
-                    <div>
-                      <h3 className={cn("font-bold", quadrant.textColor, compact ? "text-xs" : "text-lg")}>
-                        {quadrant.title}
-                      </h3>
-                      {!compact && (
-                        <p className="text-xs text-muted-foreground font-normal">
-                          {quadrant.description}
-                        </p>
-                      )}
-                    </div>
+              <div className={cn(compact ? "pb-1" : "pb-3")}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className={cn("font-bold", quadrant.textColor, compact ? "text-xs" : "text-lg")}>
+                      {quadrant.title}
+                    </h3>
+                    {!compact && (
+                      <p className="text-xs text-muted-foreground font-normal">
+                        {quadrant.description}
+                      </p>
+                    )}
                   </div>
                   <div className={cn(
                     "flex items-center justify-center rounded-full",
@@ -521,9 +499,9 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                   )}>
                     {quadrantTasks.length}
                   </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className={cn("flex-1 flex flex-col min-h-0", compact ? "p-2 pt-0" : "pb-3")}>
+                </div>
+              </div>
+              <div className={cn("flex-1 flex flex-col min-h-0", compact ? "pt-0" : "")}>
                 <div className={cn("flex-1 overflow-y-auto pr-1", compact ? "space-y-1" : "space-y-2")}>
                   {quadrantTasks.length === 0 ? (
                     <div className={cn("flex flex-col items-center justify-center text-center", compact ? "h-16" : "h-32")}>
@@ -550,8 +528,8 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                     {creatingInQuadrant === quadrant.id ? "Adding..." : "Quick Add"}
                   </Button>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           );
         })()}
         {/* Q4: Not Urgent, Not Important */}
@@ -559,28 +537,26 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
           const quadrant = QUADRANTS[3]; // Q4
           const quadrantTasks = getTasksForQuadrant(incompleteTasks, quadrant);
           return (
-            <Card
+            <div
               key={quadrant.id}
               className={cn(
-                "flex flex-col border-t-4 transition-all",
+                "flex flex-col border-l-4 rounded-lg transition-all",
                 quadrant.bgColor,
-                quadrant.borderColor
+                quadrant.borderColor,
+                compact ? "p-2" : "p-4"
               )}
             >
-              <CardHeader className={cn(compact ? "p-2 pb-1" : "pb-3")}>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={cn(compact ? "text-base" : "text-2xl")}>{quadrant.emoji}</span>
-                    <div>
-                      <h3 className={cn("font-bold", quadrant.textColor, compact ? "text-xs" : "text-lg")}>
-                        {quadrant.title}
-                      </h3>
-                      {!compact && (
-                        <p className="text-xs text-muted-foreground font-normal">
-                          {quadrant.description}
-                        </p>
-                      )}
-                    </div>
+              <div className={cn(compact ? "pb-1" : "pb-3")}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className={cn("font-bold", quadrant.textColor, compact ? "text-xs" : "text-lg")}>
+                      {quadrant.title}
+                    </h3>
+                    {!compact && (
+                      <p className="text-xs text-muted-foreground font-normal">
+                        {quadrant.description}
+                      </p>
+                    )}
                   </div>
                   <div className={cn(
                     "flex items-center justify-center rounded-full",
@@ -591,9 +567,9 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                   )}>
                     {quadrantTasks.length}
                   </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className={cn("flex-1 flex flex-col min-h-0", compact ? "p-2 pt-0" : "pb-3")}>
+                </div>
+              </div>
+              <div className={cn("flex-1 flex flex-col min-h-0", compact ? "pt-0" : "")}>
                 <div className={cn("flex-1 overflow-y-auto pr-1", compact ? "space-y-1" : "space-y-2")}>
                   {quadrantTasks.length === 0 ? (
                     <div className={cn("flex flex-col items-center justify-center text-center", compact ? "h-16" : "h-32")}>
@@ -620,8 +596,8 @@ export function EisenhowerMatrix({ tasks, onUpdateTask, onCreateTask, compact = 
                     {creatingInQuadrant === quadrant.id ? "Adding..." : "Quick Add"}
                   </Button>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           );
         })()}
       </div>

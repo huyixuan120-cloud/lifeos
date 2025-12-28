@@ -47,84 +47,140 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 0.75rem;
+
+  /* Autumn color palette - Extracted from screenshot */
+  --background: #FEFDFB;           /* Very light cream background */
+  --foreground: #3E3530;           /* Dark brown text */
+
+  --card: #FAF9F7;                 /* Light beige cards */
+  --card-foreground: #3E3530;      /* Dark brown text on cards */
+
+  --popover: #FAF9F7;
+  --popover-foreground: #3E3530;
+
+  --primary: #C97152;              /* Terracotta/burnt orange */
+  --primary-foreground: #FFFFFF;   /* White text on primary */
+
+  --secondary: #F5EFE7;            /* Soft warm beige */
+  --secondary-foreground: #3E3530; /* Dark brown text */
+
+  --muted: #F9F6F1;                /* Very light warm beige */
+  --muted-foreground: #8B7E74;     /* Medium brown */
+
+  --accent: #F5EFE7;               /* Warm beige accent */
+  --accent-foreground: #3E3530;    /* Dark brown text */
+
+  --destructive: #D9534F;          /* Warm red */
+
+  --border: #E8E2DA;               /* Light beige border */
+  --input: #F9F6F1;                /* Light beige input */
+  --ring: #C97152;                 /* Terracotta ring */
+
+  /* Chart colors - autumn palette */
+  --chart-1: #C97152;              /* Terracotta */
+  --chart-2: #D4915E;              /* Warm tan */
+  --chart-3: #B8886B;              /* Dusty brown */
+  --chart-4: #E5B299;              /* Soft peach */
+  --chart-5: #A86F4C;              /* Deep brown */
+
+  /* Sidebar - autumn tones */
+  --sidebar: #FAF9F7;              /* Light beige */
+  --sidebar-foreground: #3E3530;   /* Dark brown */
+  --sidebar-primary: #C97152;      /* Terracotta */
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F5EFE7;       /* Light warm beige */
+  --sidebar-accent-foreground: #3E3530;
+  --sidebar-border: #E8E2DA;       /* Light border */
+  --sidebar-ring: #C97152;         /* Terracotta */
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Dark mode - warm autumn tones */
+  --background: #2A2420;          /* Warm dark brown */
+  --foreground: #F5EFE7;          /* Warm cream text */
+
+  --card: #342E28;                /* Slightly lighter brown */
+  --card-foreground: #F5EFE7;
+
+  --popover: #342E28;
+  --popover-foreground: #F5EFE7;
+
+  --primary: #D4915E;             /* Lighter terracotta */
+  --primary-foreground: #FFFFFF;  /* White text */
+
+  --secondary: #4A423A;           /* Dark warm gray */
+  --secondary-foreground: #E8E2DA;
+
+  --muted: #3E3530;               /* Medium brown */
+  --muted-foreground: #B8AFA6;    /* Light warm gray */
+
+  --accent: #4A423A;              /* Warm dark accent */
+  --accent-foreground: #E8E2DA;
+
+  --destructive: #E27B6C;         /* Warm salmon red */
+
+  --border: #4A423A;              /* Subtle warm border */
+  --input: #3E3530;               /* Input background */
+  --ring: #D4915E;                /* Warm tan ring */
+
+  /* Chart colors - warm dark palette */
+  --chart-1: #D4915E;
+  --chart-2: #E5B299;
+  --chart-3: #B8886B;
+  --chart-4: #F0C9B3;
+  --chart-5: #A86F4C;
+
+  /* Sidebar - warm dark */
+  --sidebar: #2A2420;
+  --sidebar-foreground: #F5EFE7;
+  --sidebar-primary: #D4915E;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #3E3530;
+  --sidebar-accent-foreground: #E8E2DA;
+  --sidebar-border: #4A423A;
+  --sidebar-ring: #D4915E;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-weight: 400;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-geist-sans), sans-serif;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+  }
+
+  button, input, textarea, select {
+    font-family: var(--font-geist-sans), sans-serif;
+  }
+
+  code, pre {
+    font-family: var(--font-geist-mono), "Courier New", monospace;
+  }
+
+  /* ContentEditable placeholder */
+  [contenteditable]:empty:before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+    white-space: pre-wrap;
   }
 }
 
-/* FullCalendar Custom Styling - Notion/Shadcn Theme */
+/* FullCalendar Custom Styling - Warm Theme */
 .fc {
   --fc-border-color: hsl(var(--border));
   --fc-button-bg-color: transparent;
@@ -139,7 +195,7 @@
   font-family: var(--font-geist-sans), sans-serif;
 }
 
-/* Calendar buttons - Shadcn style */
+/* Calendar buttons */
 .fc .fc-button {
   @apply rounded-md px-3 py-2 text-sm font-medium transition-colors;
   @apply hover:bg-accent hover:text-accent-foreground;
@@ -230,7 +286,7 @@
   display: none;
 }
 
-/* Time grid (week/day view) */
+/* Time grid */
 .fc .fc-timegrid-slot {
   @apply border-border;
   height: 3rem;
@@ -245,47 +301,32 @@
   @apply rounded-md;
 }
 
-/* Now Indicator - Google Calendar Style (Thin Red Line + Red Arrow) */
+/* Now Indicator - Warm red-orange */
 .fc .fc-timegrid-now-indicator-line {
-  border-color: #ef4444 !important; /* Tailwind red-500 */
-  border-width: 2px 0 0 0 !important; /* Thin top border only */
-  z-index: 10 !important; /* Above grid lines */
+  border-color: oklch(0.60 0.20 30) !important;
+  border-width: 2px 0 0 0 !important;
+  z-index: 10 !important;
 }
 
 .fc .fc-timegrid-now-indicator-arrow {
-  border-color: #ef4444 !important; /* Red arrow */
-  border-width: 5px 0 5px 6px !important; /* Arrow shape */
+  border-color: oklch(0.60 0.20 30) !important;
+  border-width: 5px 0 5px 6px !important;
   background-color: transparent !important;
 }
 
-.fc .fc-timegrid-now-indicator-arrow::before {
-  content: '';
-  display: block;
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 5px 0 5px 6px;
-  border-color: transparent transparent transparent #ef4444;
-}
-
-/* Grid Lines - Subtle Gray (Google Calendar Style) */
+/* Grid Lines */
 .fc .fc-timegrid-slot,
 .fc .fc-timegrid-slot-lane {
-  border-color: #f3f4f6 !important; /* gray-100 for subtle lines */
+  border-color: hsl(var(--border)) !important;
 }
 
 .fc .fc-timegrid-divider {
-  border-color: #e5e7eb !important; /* gray-200 for stronger dividers */
+  border-color: hsl(var(--border)) !important;
 }
 
 .fc-theme-standard td,
 .fc-theme-standard th {
-  border-color: #f3f4f6 !important; /* gray-100 */
-}
-
-/* Make major hour lines slightly darker */
-.fc .fc-timegrid-slot[data-time]:not([data-time*=":30"]) {
-  border-top-color: #e5e7eb !important; /* gray-200 for hour boundaries */
+  border-color: hsl(var(--border)) !important;
 }
 
 /* Scrollbars */
@@ -311,7 +352,7 @@
   @apply bg-muted-foreground/50;
 }
 
-/* Popover for more events */
+/* Popover */
 .fc .fc-popover {
   @apply bg-popover text-popover-foreground border border-border rounded-md shadow-md;
 }

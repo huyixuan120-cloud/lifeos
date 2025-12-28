@@ -7,9 +7,8 @@ import {
   UserProfile,
   FocusSession,
   FocusTimerState,
-  calculateTaskXP,
-  calculateFocusXP,
-  calculateLevel,
+  FocusTimerMode,
+  TimerSettings,
   calculateGoalProgress,
   determineGoalStatus,
   TaskEffort,
@@ -26,6 +25,7 @@ interface LifeOSContextType {
   userProfile: UserProfile;
   focusSessions: FocusSession[];
   timerState: FocusTimerState;
+  timerSettings: TimerSettings;
 
   // Task Management
   addTask: (task: Omit<ExtendedTask, "id" | "created_at" | "updated_at">) => void;
@@ -49,6 +49,16 @@ interface LifeOSContextType {
   resetTimer: () => void;
   setTimerDuration: (minutes: number) => void;
   setTimerTaskId: (taskId: string | null) => void;
+  setTimerMode: (mode: FocusTimerMode) => void; // NEW: Pomofocus mode switching
+  incrementPomodoroCount: () => void; // NEW: For auto-switch logic
+  resetDailyPomodoros: () => void; // NEW: Reset count at midnight
+
+  // Timer Settings
+  updateTimerSettings: (settings: TimerSettings) => void;
+
+  // Task Bulk Actions
+  clearCompletedTasks: () => void;
+  clearAllTasks: () => void;
 
   // User Profile
   updateUserProfile: (updates: Partial<UserProfile>) => void;
@@ -67,13 +77,23 @@ export const LifeOSContext = createContext<LifeOSContextType | undefined>(undefi
 const MOCK_USER_PROFILE: UserProfile = {
   id: "user-1",
   name: "LifeOS User",
-  xp: 2450,
-  level: 2,
-  focusMinutes: 240,
-  streak: 12,
-  tasksCompleted: 42,
-  achievements: ["early-bird", "deep-worker", "task-master"],
-  memberSince: "2025-01-01T00:00:00.000Z",
+  xp: 0,
+  level: 0,
+  focusMinutes: 0,
+  streak: 0,
+  tasksCompleted: 0,
+  achievements: [],
+  memberSince: new Date().toISOString(),
+};
+
+const DEFAULT_TIMER_SETTINGS: TimerSettings = {
+  pomodoroDuration: 25,
+  shortBreakDuration: 5,
+  longBreakDuration: 15,
+  autoStartBreaks: false,
+  autoStartPomodoros: false,
+  volume: 50,
+  alarmSound: "bell",
 };
 
 const MOCK_GOALS: Goal[] = [
@@ -193,17 +213,35 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
   const [userProfile, setUserProfile] = useState<UserProfile>(MOCK_USER_PROFILE);
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>(MOCK_FOCUS_SESSIONS);
 
+  // Timer Settings (Load from localStorage or use defaults)
+  const [timerSettings, setTimerSettings] = useState<TimerSettings>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("lifeos-timer-settings");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          return DEFAULT_TIMER_SETTINGS;
+        }
+      }
+    }
+    return DEFAULT_TIMER_SETTINGS;
+  });
+
   // Focus Timer State (Persists across page navigations)
   const [timerState, setTimerState] = useState<FocusTimerState>({
     isActive: false,
     timeLeft: 25 * 60, // 25 minutes in seconds
     duration: 25 * 60,
-    mode: "focus",
+    mode: "pomodoro", // Changed from "focus" to "pomodoro"
     taskId: null,
+    pomodorosCompleted: 0, // NEW: Track completed pomodoros for auto-switch
+    currentSessionDate: new Date().toISOString().split('T')[0], // NEW: YYYY-MM-DD
   });
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasCompletedRef = useRef<boolean>(false); // Prevent duplicate completion calls
+  const audioRef = useRef<HTMLAudioElement | null>(null); // Audio for alarm
 
   // ===========================================================================
   // TASK MANAGEMENT
@@ -299,26 +337,13 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
       )
     );
 
-    // Calculate XP reward
-    const xpReward = calculateTaskXP(task);
-    const newXP = userProfile.xp + xpReward.totalXP;
-    const newLevel = calculateLevel(newXP);
-    const leveledUp = newLevel > userProfile.level;
-
-    // Update user profile
+    // Update user profile (NO XP - Pure productivity tracking)
     setUserProfile((prev) => ({
       ...prev,
-      xp: newXP,
-      level: newLevel,
       tasksCompleted: prev.tasksCompleted + 1,
     }));
 
-    // Show level up notification (in a real app)
-    if (leveledUp) {
-      console.log(`🎉 Level Up! You're now Level ${newLevel}!`);
-    }
-
-    console.log(`✅ Task completed! +${xpReward.totalXP} XP`);
+    console.log(`✅ Task completed!`);
 
     // Update goal progress if task was linked to a goal
     if (task.goalId) {
@@ -505,26 +530,13 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
 
     setFocusSessions((prev) => [newSession, ...prev]);
 
-    // Calculate XP reward (10 XP per minute)
-    const xpReward = calculateFocusXP(minutes);
-    const newXP = userProfile.xp + xpReward;
-    const newLevel = calculateLevel(newXP);
-    const leveledUp = newLevel > userProfile.level;
-
-    // Update user profile
+    // Update user profile (NO XP - Pure productivity tracking)
     setUserProfile((prev) => ({
       ...prev,
-      xp: newXP,
-      level: newLevel,
       focusMinutes: prev.focusMinutes + minutes,
     }));
 
-    // Show level up notification
-    if (leveledUp) {
-      console.log(`🎉 Level Up! You're now Level ${newLevel}!`);
-    }
-
-    console.log(`🎯 Focus session completed! +${xpReward} XP (${minutes} minutes)`);
+    console.log(`🎯 Focus session completed! (${minutes} minutes)`);
   }, [userProfile]);
 
   // ===========================================================================
@@ -556,6 +568,41 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
   }, []);
 
   /**
+   * Play alarm sound based on settings
+   */
+  const playAlarm = useCallback(() => {
+    if (typeof window === "undefined" || timerSettings.volume === 0) return;
+
+    // Create simple beep using Web Audio API
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    // Adjust frequency based on alarm sound selection
+    const frequencies: Record<TimerSettings["alarmSound"], number> = {
+      bell: 800,
+      digital: 1000,
+      wood: 600,
+      bird: 1200,
+    };
+
+    oscillator.frequency.value = frequencies[timerSettings.alarmSound];
+    oscillator.type = "sine";
+
+    // Set volume (0-1 range)
+    gainNode.gain.value = timerSettings.volume / 100;
+
+    // Play for 200ms
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.2);
+
+    console.log(`🔔 Alarm played: ${timerSettings.alarmSound} at ${timerSettings.volume}% volume`);
+  }, [timerSettings]);
+
+  /**
    * Handle timer completion
    */
   const handleTimerCompletion = useCallback(() => {
@@ -563,40 +610,70 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
     if (hasCompletedRef.current) return;
     hasCompletedRef.current = true;
 
-    // Calculate duration in minutes
+    const currentMode = timerState.mode;
     const durationInMinutes = Math.floor(timerState.duration / 60);
 
-    // Award XP and save focus session
+    // Play alarm sound
+    playAlarm();
+
+    // Save focus session (without XP gamification)
     addFocusSession(durationInMinutes, timerState.taskId || undefined);
 
-    // Calculate XP earned
-    const xpEarned = calculateFocusXP(durationInMinutes);
+    // AUTO-SWITCH LOGIC (Pomofocus-style)
+    if (currentMode === "pomodoro") {
+      // Pomodoro completed - increment count
+      const newPomodorosCompleted = timerState.pomodorosCompleted + 1;
 
-    // Show browser notification
-    showNotification(
-      "🎉 Focus Session Complete!",
-      `Well done! You earned +${xpEarned} XP for ${durationInMinutes} minutes of focused work.`
-    );
+      // Every 4th pomodoro → Long Break, else → Short Break
+      const nextMode = (newPomodorosCompleted % 4 === 0) ? "longBreak" : "shortBreak";
+      const nextDuration = nextMode === "longBreak"
+        ? timerSettings.longBreakDuration * 60
+        : timerSettings.shortBreakDuration * 60;
 
-    // Log completion
-    console.log(`🎉 Focus Timer Complete! ${durationInMinutes} minutes, +${xpEarned} XP`);
+      // Show notification
+      showNotification(
+        "🎉 Pomodoro Complete!",
+        nextMode === "longBreak"
+          ? "Great work! Time for a long break."
+          : "Well done! Take a short break."
+      );
 
-    // TODO: Play completion sound
-    // const audio = new Audio('/sounds/complete.mp3');
-    // audio.play();
+      console.log(`🎉 Pomodoro #${newPomodorosCompleted} complete! Switching to ${nextMode}`);
 
-    // CRITICAL: Stop timer and reset to initial state BUT KEEP IT PAUSED
-    setTimerState((prev) => ({
-      ...prev,
-      isActive: false,        // STOP the timer (don't auto-restart)
-      timeLeft: prev.duration, // Reset to full duration
-    }));
+      // Update state with new mode and count
+      setTimerState((prev) => ({
+        ...prev,
+        mode: nextMode,
+        duration: nextDuration,
+        timeLeft: nextDuration,
+        isActive: timerSettings.autoStartBreaks, // Auto-start if enabled
+        pomodorosCompleted: newPomodorosCompleted,
+      }));
+    } else {
+      // Break completed - switch back to pomodoro
+      const pomodoroDuration = timerSettings.pomodoroDuration * 60;
+
+      showNotification(
+        "☕ Break Over!",
+        "Ready to focus? Let's get back to work!"
+      );
+
+      console.log(`☕ ${currentMode} complete! Switching to pomodoro`);
+
+      setTimerState((prev) => ({
+        ...prev,
+        mode: "pomodoro",
+        duration: pomodoroDuration,
+        timeLeft: pomodoroDuration,
+        isActive: timerSettings.autoStartPomodoros, // Auto-start if enabled
+      }));
+    }
 
     // Reset completion flag after a delay
     setTimeout(() => {
       hasCompletedRef.current = false;
     }, 1000);
-  }, [timerState.duration, timerState.taskId, addFocusSession, showNotification]);
+  }, [timerState.mode, timerState.duration, timerState.taskId, timerState.pomodorosCompleted, timerSettings, addFocusSession, showNotification, playAlarm]);
 
   /**
    * The Heartbeat - Timer countdown logic
@@ -649,6 +726,34 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
   }, [requestNotificationPermission]);
 
   /**
+   * Daily Reset - Reset pomodoro count at midnight
+   * NEW: For Pomofocus-style daily tracking
+   */
+  useEffect(() => {
+    const checkDailyReset = () => {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+      // If date has changed, reset pomodoro count
+      if (timerState.currentSessionDate !== today) {
+        setTimerState((prev) => ({
+          ...prev,
+          pomodorosCompleted: 0,
+          currentSessionDate: today,
+        }));
+        console.log("🌅 New day! Pomodoro count reset to 0");
+      }
+    };
+
+    // Check on mount
+    checkDailyReset();
+
+    // Check every minute (lightweight check)
+    const interval = setInterval(checkDailyReset, 60000);
+
+    return () => clearInterval(interval);
+  }, [timerState.currentSessionDate]);
+
+  /**
    * Start the timer
    */
   const startTimer = useCallback(() => {
@@ -699,6 +804,91 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
     setTimerState((prev) => ({ ...prev, taskId }));
   }, []);
 
+  /**
+   * Set timer mode and update duration accordingly
+   * NEW: For Pomofocus-style mode switching
+   */
+  const setTimerMode = useCallback((mode: FocusTimerMode) => {
+    // Use durations from settings
+    const durations = {
+      pomodoro: timerSettings.pomodoroDuration * 60,
+      shortBreak: timerSettings.shortBreakDuration * 60,
+      longBreak: timerSettings.longBreakDuration * 60,
+    };
+
+    const newDuration = durations[mode];
+
+    setTimerState((prev) => ({
+      ...prev,
+      mode,
+      duration: newDuration,
+      timeLeft: newDuration,
+      isActive: false, // Always pause when switching modes
+    }));
+
+    hasCompletedRef.current = false;
+    console.log(`🔄 Timer mode set to ${mode} (${newDuration / 60} minutes)`);
+  }, [timerSettings]);
+
+  /**
+   * Increment pomodoro count (for auto-switch logic)
+   * NEW: Called when a pomodoro completes
+   */
+  const incrementPomodoroCount = useCallback(() => {
+    setTimerState((prev) => ({
+      ...prev,
+      pomodorosCompleted: prev.pomodorosCompleted + 1,
+    }));
+  }, []);
+
+  /**
+   * Reset daily pomodoro count
+   * NEW: Called at midnight or manually
+   */
+  const resetDailyPomodoros = useCallback(() => {
+    setTimerState((prev) => ({
+      ...prev,
+      pomodorosCompleted: 0,
+      currentSessionDate: new Date().toISOString().split('T')[0],
+    }));
+    console.log("🌅 Daily pomodoro count reset");
+  }, []);
+
+  // ===========================================================================
+  // TIMER SETTINGS
+  // ===========================================================================
+
+  /**
+   * Update timer settings and persist to localStorage
+   */
+  const updateTimerSettings = useCallback((settings: TimerSettings) => {
+    setTimerSettings(settings);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("lifeos-timer-settings", JSON.stringify(settings));
+    }
+    console.log("⚙️ Timer settings updated");
+  }, []);
+
+  // ===========================================================================
+  // TASK BULK ACTIONS
+  // ===========================================================================
+
+  /**
+   * Clear all completed tasks
+   */
+  const clearCompletedTasks = useCallback(() => {
+    setTasks((prev) => prev.filter((task) => !task.is_completed));
+    console.log("🗑️ Completed tasks cleared");
+  }, []);
+
+  /**
+   * Clear all tasks (requires confirmation)
+   */
+  const clearAllTasks = useCallback(() => {
+    setTasks([]);
+    console.log("🗑️ All tasks cleared");
+  }, []);
+
   // ===========================================================================
   // USER PROFILE
   // ===========================================================================
@@ -718,6 +908,7 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
     userProfile,
     focusSessions,
     timerState,
+    timerSettings,
 
     // Task Management
     addTask,
@@ -741,6 +932,16 @@ export function LifeOSProvider({ children }: LifeOSProviderProps) {
     resetTimer,
     setTimerDuration,
     setTimerTaskId,
+    setTimerMode, // NEW: Pomofocus mode switching
+    incrementPomodoroCount, // NEW: Auto-switch logic
+    resetDailyPomodoros, // NEW: Daily reset
+
+    // Timer Settings
+    updateTimerSettings,
+
+    // Task Bulk Actions
+    clearCompletedTasks,
+    clearAllTasks,
 
     // User Profile
     updateUserProfile,

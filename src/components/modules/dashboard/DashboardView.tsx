@@ -91,15 +91,15 @@ export function DashboardView({ tasks = [], events = [], onAddTask }: DashboardV
   };
 
   return (
-    <div className="h-full w-full overflow-auto bg-gradient-to-br from-gray-50 via-white to-blue-50 dark:from-gray-950 dark:via-gray-900 dark:to-blue-950">
+    <div className="h-full w-full overflow-auto bg-gradient-to-br from-[#FAF9F7] via-[#FEFDFB] to-[#F5EFE7] dark:from-[#2A2420] dark:via-[#2A2420] dark:to-[#342E28]">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Widget 1: Header - Full Width */}
-        <Card className="border-gray-100 dark:border-gray-800 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/50 dark:to-purple-950/50 rounded-xl">
+        <Card className="border-gray-100 dark:border-gray-800 bg-gradient-to-r from-[#F5EFE7] to-[#FAF9F7] dark:from-[#3E3530] dark:to-[#342E28] rounded-xl">
           <CardContent className="p-8">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">{dateString}</p>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-[#C97152] to-[#D4915E] bg-clip-text text-transparent">
                   {getGreeting()} 👋
                 </h1>
                 <p className="text-lg text-muted-foreground">
@@ -110,13 +110,13 @@ export function DashboardView({ tasks = [], events = [], onAddTask }: DashboardV
               {/* Quick Stats */}
               <div className="flex gap-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  <div className="text-2xl font-bold text-[#C97152] dark:text-[#D4915E]">
                     {criticalTasks.length}
                   </div>
                   <div className="text-xs text-muted-foreground">Critical</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                  <div className="text-2xl font-bold text-[#A86F4C] dark:text-[#B8886B]">
                     {tasks.filter((t) => !t.is_completed).length}
                   </div>
                   <div className="text-xs text-muted-foreground">Active</div>
@@ -216,9 +216,9 @@ export function DashboardView({ tasks = [], events = [], onAddTask }: DashboardV
           {/* Right Column: Stacked Widgets */}
           <div className="space-y-6">
             {/* Widget 2: Deep Work Status */}
-            <Card className="border-purple-100 dark:border-purple-900/30 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 rounded-xl">
+            <Card className="border-[#E8E2DA] dark:border-[#4A423A] bg-gradient-to-br from-[#F5EFE7] to-[#F9F6F1] dark:from-[#3E3530] dark:to-[#342E28] rounded-xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-purple-700 dark:text-purple-400 text-base">
+                <CardTitle className="flex items-center gap-2 text-[#C97152] dark:text-[#D4915E] text-base">
                   <Target className="h-5 w-5" />
                   Deep Work
                 </CardTitle>
@@ -226,7 +226,7 @@ export function DashboardView({ tasks = [], events = [], onAddTask }: DashboardV
               <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <div className="text-4xl font-bold text-purple-600 dark:text-purple-400 mb-1">
+                    <div className="text-4xl font-bold text-[#C97152] dark:text-[#D4915E] mb-1">
                       {focusMinutesToday}m
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -236,7 +236,7 @@ export function DashboardView({ tasks = [], events = [], onAddTask }: DashboardV
 
                   <Button
                     onClick={() => router.push("/focus")}
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                    className="w-full bg-[#C97152] hover:bg-[#B8886B] text-white"
                   >
                     <Clock className="h-4 w-4 mr-2" />
                     Start Focus Session
@@ -250,7 +250,7 @@ export function DashboardView({ tasks = [], events = [], onAddTask }: DashboardV
                     </div>
                     <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-purple-600 dark:bg-purple-500 transition-all"
+                        className="h-full bg-[#C97152] dark:bg-[#D4915E] transition-all"
                         style={{ width: `${(focusMinutesToday / 120) * 100}%` }}
                       />
                     </div>
@@ -260,9 +260,9 @@ export function DashboardView({ tasks = [], events = [], onAddTask }: DashboardV
             </Card>
 
             {/* Widget 4: On The Radar - Upcoming Events */}
-            <Card className="border-blue-100 dark:border-blue-900/30 bg-white dark:bg-gray-950 rounded-xl">
+            <Card className="border-[#E8E2DA] dark:border-[#4A423A] bg-white dark:bg-gray-950 rounded-xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400 text-base">
+                <CardTitle className="flex items-center gap-2 text-[#A86F4C] dark:text-[#B8886B] text-base">
                   <CalendarIcon className="h-5 w-5" />
                   Up Next
                 </CardTitle>
@@ -291,7 +291,7 @@ export function DashboardView({ tasks = [], events = [], onAddTask }: DashboardV
                     {upcomingEvents.map((event, index) => (
                       <div
                         key={event.id || index}
-                        className="flex items-start gap-3 p-3 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-colors cursor-pointer"
+                        className="flex items-start gap-3 p-3 rounded-lg hover:bg-[#F5EFE7] dark:hover:bg-[#3E3530] transition-colors cursor-pointer"
                         onClick={() => router.push("/calendar")}
                       >
                         <div className="flex flex-col items-center">
@@ -354,7 +354,7 @@ export function DashboardView({ tasks = [], events = [], onAddTask }: DashboardV
                   type="submit"
                   disabled={!inboxInput.trim() || isAddingInbox || !onAddTask}
                   size="icon"
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-[#C97152] hover:bg-[#B8886B]"
                 >
                   {isAddingInbox ? (
                     <TrendingUp className="h-4 w-4 animate-spin" />

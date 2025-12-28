@@ -13,6 +13,7 @@ import {
   RefreshCcw,
   Bell,
   CircleHelp,
+  Dumbbell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -37,6 +38,7 @@ const navigationItems: NavItem[] = [
   { icon: CheckCircle, label: "Tasks", href: "/tasks" },
   { icon: Clock, label: "Focus", href: "/focus" },
   { icon: Target, label: "Goals", href: "/goals" },
+  { icon: Dumbbell, label: "Allenamento", href: "/training" },
   { icon: User, label: "Profile", href: "/profile" },
   { icon: Search, label: "Search", href: "#" },
 ];

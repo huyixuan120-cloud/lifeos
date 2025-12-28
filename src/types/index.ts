@@ -211,9 +211,9 @@ export interface FocusSession {
 }
 
 /**
- * Focus timer mode
+ * Focus timer mode - Pomofocus style with three distinct modes
  */
-export type FocusTimerMode = "focus" | "break";
+export type FocusTimerMode = "pomodoro" | "shortBreak" | "longBreak";
 
 /**
  * Focus timer state
@@ -236,7 +236,7 @@ export interface FocusTimerState {
   duration: number;
 
   /**
-   * Current timer mode
+   * Current timer mode (pomodoro, shortBreak, or longBreak)
    */
   mode: FocusTimerMode;
 
@@ -244,6 +244,59 @@ export interface FocusTimerState {
    * Optional task ID linked to this timer session
    */
   taskId?: string | null;
+
+  /**
+   * Number of pomodoros completed today (for auto-switch logic)
+   * Resets at midnight
+   */
+  pomodorosCompleted: number;
+
+  /**
+   * Current session date (YYYY-MM-DD format)
+   * Used to detect daily reset
+   */
+  currentSessionDate: string;
+}
+
+/**
+ * Timer settings (Pomofocus-style configuration)
+ * Persisted in localStorage
+ */
+export interface TimerSettings {
+  /**
+   * Pomodoro duration in minutes (default: 25)
+   */
+  pomodoroDuration: number;
+
+  /**
+   * Short break duration in minutes (default: 5)
+   */
+  shortBreakDuration: number;
+
+  /**
+   * Long break duration in minutes (default: 15)
+   */
+  longBreakDuration: number;
+
+  /**
+   * Auto-start breaks after pomodoro completes
+   */
+  autoStartBreaks: boolean;
+
+  /**
+   * Auto-start pomodoros after break completes
+   */
+  autoStartPomodoros: boolean;
+
+  /**
+   * Alarm sound volume (0-100)
+   */
+  volume: number;
+
+  /**
+   * Selected alarm sound
+   */
+  alarmSound: "bell" | "digital" | "wood" | "bird";
 }
 
 // =============================================================================

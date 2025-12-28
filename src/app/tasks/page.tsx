@@ -5,19 +5,21 @@ import { useLifeOS } from "@/hooks/useLifeOS";
 import { TaskList } from "@/components/modules/tasks/TaskList";
 import { EisenhowerMatrix } from "@/components/modules/tasks/EisenhowerMatrix";
 import { TaskCreateDialog } from "@/components/modules/tasks/TaskCreateDialog";
+import { CompletedArchive } from "@/components/modules/tasks/CompletedArchive";
 import type { LifeOSTask } from "@/types/tasks";
 
 /**
- * Tasks Page - Mission Control Layout
+ * Tasks Page - VERTICAL LAYOUT (Clean & Practical)
  *
- * Features a side-by-side layout:
- * - Main Area (Left/2/3): Task List with quick add and advanced creation
- * - Strategy Widget (Right/1/3): Eisenhower Matrix for prioritization
+ * Features a vertical single-column layout:
+ * - Top Section: Unified Task Input + Task List (Full Width)
+ * - Bottom Section: Eisenhower Matrix (Full Width, generous spacing above)
  *
- * Now integrated with the global LifeOS Smart Integration System!
- * - Task completion awards XP and levels up your profile
- * - Tasks linked to goals automatically update goal progress
- * - Full gamification and cross-module integration
+ * Benefits:
+ * - No more cluttered 2-column split
+ * - Better handling of long task text
+ * - Clean single input with expandable advanced options
+ * - Generous spacing between sections for visual clarity
  */
 export default function TasksPage() {
   const { tasks, addTask, updateTask, deleteTask, completeTask } = useLifeOS();
@@ -99,16 +101,16 @@ export default function TasksPage() {
         <div>
           <h1 className="text-2xl font-semibold">Tasks</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Mission Control - Manage and prioritize your tasks
+            Manage and prioritize your tasks
           </p>
         </div>
       </div>
 
-      {/* Mission Control Layout - Responsive Grid */}
+      {/* VERTICAL SINGLE-COLUMN LAYOUT */}
       <div className="flex-1 overflow-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8 items-start">
-          {/* Main Area - Task List (2/3 width on desktop) */}
-          <div className="lg:col-span-2 flex flex-col gap-6">
+        <div className="max-w-6xl mx-auto space-y-12">
+          {/* Section A: Task Input + Task List (Full Width) */}
+          <div className="flex flex-col gap-6">
             <TaskList
               tasks={tasks as LifeOSTask[]}
               onAdd={handleAddTask}
@@ -118,16 +120,33 @@ export default function TasksPage() {
             />
           </div>
 
-          {/* Strategy Widget - Eisenhower Matrix (1/3 width on desktop, sticky) */}
-          <div className="lg:col-span-1 sticky top-8">
+          {/* Section B: Eisenhower Matrix (Full Width, generous spacing above) */}
+          <div className="mt-16">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold">Eisenhower Matrix</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Prioritize tasks by urgency and importance
+              </p>
+            </div>
             <div className="overflow-hidden rounded-lg border bg-card">
               <EisenhowerMatrix
                 tasks={tasks as LifeOSTask[]}
                 onUpdateTask={handleUpdateTask}
                 onCreateTask={handleCreateTask}
-                compact={true}
+                compact={false}
               />
             </div>
+          </div>
+
+          {/* Section C: Completed Tasks Archive (Full Width, generous spacing above) */}
+          <div className="mt-16">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold">Completed Tasks</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Archive of tasks you've checked off
+              </p>
+            </div>
+            <CompletedArchive tasks={tasks as LifeOSTask[]} />
           </div>
         </div>
       </div>

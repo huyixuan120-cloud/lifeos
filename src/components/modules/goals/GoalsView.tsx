@@ -16,6 +16,8 @@ import {
   DollarSign,
   Users,
   CheckCircle2,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,26 +48,26 @@ import { useLifeOS } from "@/hooks/useLifeOS";
 import type { GoalCategory, GoalStatus, Goal } from "@/types";
 
 const categoryConfig: Record<GoalCategory, { icon: React.ElementType; label: string; color: string }> = {
-  health: { icon: Heart, label: "Health", color: "text-red-600 bg-red-100 dark:bg-red-950/30" },
-  business: { icon: Briefcase, label: "Business", color: "text-blue-600 bg-blue-100 dark:bg-blue-950/30" },
-  learning: { icon: BookOpen, label: "Learning", color: "text-purple-600 bg-purple-100 dark:bg-purple-950/30" },
-  finance: { icon: DollarSign, label: "Finance", color: "text-green-600 bg-green-100 dark:bg-green-950/30" },
-  personal: { icon: Zap, label: "Personal", color: "text-yellow-600 bg-yellow-100 dark:bg-yellow-950/30" },
-  social: { icon: Users, label: "Social", color: "text-pink-600 bg-pink-100 dark:bg-pink-950/30" },
+  health: { icon: Heart, label: "Health", color: "text-[#C97152] bg-[#F5EFE7] dark:bg-[#4A423A]" },
+  business: { icon: Briefcase, label: "Business", color: "text-[#A86F4C] bg-[#F9F6F1] dark:bg-[#3E3530]" },
+  learning: { icon: BookOpen, label: "Learning", color: "text-[#B8886B] bg-[#F5EFE7] dark:bg-[#4A423A]" },
+  finance: { icon: DollarSign, label: "Finance", color: "text-[#8B7355] bg-[#F9F6F1] dark:bg-[#3E3530]" },
+  personal: { icon: Zap, label: "Personal", color: "text-[#D4915E] bg-[#F5EFE7] dark:bg-[#4A423A]" },
+  social: { icon: Users, label: "Social", color: "text-[#C97152] bg-[#F9F6F1] dark:bg-[#3E3530]" },
 };
 
 const statusConfig: Record<GoalStatus, { label: string; color: string; icon: React.ElementType }> = {
-  "on-track": { label: "On Track", color: "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400", icon: TrendingUp },
-  "behind": { label: "Behind", color: "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400", icon: AlertCircle },
-  "completed": { label: "Completed", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400", icon: Trophy },
+  "on-track": { label: "On Track", color: "bg-[#E8F5E9] text-[#6B8E6F] dark:bg-[#3E4A3F] dark:text-[#A5C9A8]", icon: TrendingUp },
+  "behind": { label: "Behind", color: "bg-[#FCE8E6] text-[#C97152] dark:bg-[#4A3530] dark:text-[#E5B299]", icon: AlertCircle },
+  "completed": { label: "Completed", color: "bg-[#F9F6F1] text-[#8B7E74] dark:bg-[#3E3530] dark:text-[#B8AFA6]", icon: Trophy },
 };
 
 export function GoalsView() {
   // Get real goals data from global context
-  const { goals, addGoal } = useLifeOS();
+  const { goals, addGoal, updateGoal, deleteGoal } = useLifeOS();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
 
   // Form state
   const [formTitle, setFormTitle] = useState("");
@@ -73,49 +75,60 @@ export function GoalsView() {
   const [formWhy, setFormWhy] = useState("");
   const [formTargetDate, setFormTargetDate] = useState("");
 
-  // Year progress state (initialized to avoid hydration mismatch)
-  const [yearProgress, setYearProgress] = useState(0);
-  const [daysLeft, setDaysLeft] = useState(0);
-
-  // Calculate year progress on client side only
-  useEffect(() => {
-    const calculateYearProgress = () => {
-      const now = new Date();
-      const startOfYear = new Date(now.getFullYear(), 0, 1);
-      const endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
-      const totalMs = endOfYear.getTime() - startOfYear.getTime();
-      const elapsedMs = now.getTime() - startOfYear.getTime();
-      const progress = (elapsedMs / totalMs) * 100;
-      const daysRemaining = Math.ceil((endOfYear.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-      setYearProgress(Math.min(100, Math.max(0, progress)));
-      setDaysLeft(daysRemaining);
-    };
-
-    calculateYearProgress();
-  }, []);
-
-  // Handle add goal
-  const handleAddGoal = () => {
+  // Handle add/update goal
+  const handleSaveGoal = () => {
     if (!formTitle.trim()) return;
 
-    // Use context's addGoal function
-    addGoal({
-      title: formTitle.trim(),
-      category: formCategory,
-      status: "on-track",
-      why: formWhy.trim(),
-      targetDate: formTargetDate || null,
-    });
+    if (dialogMode === "edit" && editingGoal) {
+      // Update existing goal
+      updateGoal(editingGoal.id, {
+        title: formTitle.trim(),
+        category: formCategory,
+        why: formWhy.trim(),
+        targetDate: formTargetDate || null,
+      });
+    } else {
+      // Create new goal
+      addGoal({
+        title: formTitle.trim(),
+        category: formCategory,
+        status: "on-track",
+        why: formWhy.trim(),
+        targetDate: formTargetDate || null,
+      });
+    }
 
     resetForm();
     setIsAddDialogOpen(false);
+    setEditingGoal(null);
   };
 
-  // Handle edit goal (view details only - progress is auto-calculated)
-  const handleEditGoal = (goal: Goal) => {
+  // Open dialog in edit mode
+  const handleOpenEditDialog = (goal: Goal, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
     setEditingGoal(goal);
-    setIsEditDialogOpen(true);
+    setDialogMode("edit");
+    setFormTitle(goal.title);
+    setFormCategory(goal.category);
+    setFormWhy(goal.why);
+    setFormTargetDate(goal.targetDate || "");
+    setIsAddDialogOpen(true);
+  };
+
+  // Open dialog in create mode
+  const handleOpenCreateDialog = () => {
+    setDialogMode("create");
+    resetForm();
+    setEditingGoal(null);
+    setIsAddDialogOpen(true);
+  };
+
+  // Handle delete goal
+  const handleDeleteGoal = (goalId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    if (window.confirm("Are you sure you want to delete this goal? This action cannot be undone.")) {
+      deleteGoal(goalId);
+    }
   };
 
   // Reset form
@@ -128,19 +141,19 @@ export function GoalsView() {
 
   // Get progress color
   const getProgressColor = (progress: number, status: GoalStatus) => {
-    if (status === "completed") return "bg-yellow-600 dark:bg-yellow-500";
-    if (status === "behind") return "bg-red-600 dark:bg-red-500";
-    return "bg-green-600 dark:bg-green-500";
+    if (status === "completed") return "bg-[#8B7E74] dark:bg-[#B8AFA6]";
+    if (status === "behind") return "bg-[#C97152] dark:bg-[#E5B299]";
+    return "bg-[#6B8E6F] dark:bg-[#A5C9A8]";
   };
 
   return (
-    <div className="h-full w-full overflow-auto bg-gradient-to-br from-gray-50 via-white to-purple-50 dark:from-gray-950 dark:via-gray-900 dark:to-purple-950">
+    <div className="h-full w-full overflow-auto bg-gradient-to-br from-[#FAF9F7] via-[#FEFDFB] to-[#F5EFE7] dark:from-[#2A2420] dark:via-[#2A2420] dark:to-[#342E28]">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent flex items-center gap-2">
-              <Target className="h-8 w-8 text-purple-600" />
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#C97152] to-[#D4915E] bg-clip-text text-transparent flex items-center gap-2">
+              <Target className="h-8 w-8 text-[#C97152]" />
               Strategic Vision
             </h1>
             <p className="text-muted-foreground mt-1">
@@ -148,124 +161,89 @@ export function GoalsView() {
             </p>
           </div>
 
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-purple-600 hover:bg-purple-700">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Goal
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Goal</DialogTitle>
-                <DialogDescription>
-                  Define a strategic goal that aligns with your vision
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="title">Goal Title</Label>
-                  <Input
-                    id="title"
-                    placeholder="e.g., Launch my startup"
-                    value={formTitle}
-                    onChange={(e) => setFormTitle(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="category">Category</Label>
-                  <Select
-                    value={formCategory}
-                    onValueChange={(value) => setFormCategory(value as GoalCategory)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(categoryConfig).map(([key, config]) => (
-                        <SelectItem key={key} value={key}>
-                          <div className="flex items-center gap-2">
-                            <config.icon className="h-4 w-4" />
-                            {config.label}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="why">Why? (Your Motivation)</Label>
-                  <Textarea
-                    id="why"
-                    placeholder="What drives you to achieve this goal?"
-                    value={formWhy}
-                    onChange={(e) => setFormWhy(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="target-date">Target Date (Optional)</Label>
-                  <Input
-                    id="target-date"
-                    type="date"
-                    value={formTargetDate}
-                    onChange={(e) => setFormTargetDate(e.target.value)}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleAddGoal} disabled={!formTitle.trim()}>
-                  Create Goal
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button
+            onClick={handleOpenCreateDialog}
+            className="bg-[#C97152] hover:bg-[#B8886B] text-white"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Goal
+          </Button>
         </div>
 
-        {/* Countdown Widget */}
-        <Card className="border-purple-200 dark:border-purple-900/30 bg-gradient-to-r from-purple-50 via-blue-50 to-purple-50 dark:from-purple-950/30 dark:via-blue-950/30 dark:to-purple-950/30 rounded-xl">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
+        {/* Add/Edit Goal Dialog - UNIFIED for Create & Edit */}
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {dialogMode === "edit" ? "Edit Goal" : "Create New Goal"}
+              </DialogTitle>
+              <DialogDescription>
+                {dialogMode === "edit"
+                  ? "Update your goal details below"
+                  : "Define a strategic goal that aligns with your vision"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
               <div>
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                  Time Remaining in 2025
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  <span className="font-semibold text-purple-600 dark:text-purple-400">
-                    {daysLeft} days left
-                  </span>{" "}
-                  to make it count
-                </p>
+                <Label htmlFor="title">Goal Title</Label>
+                <Input
+                  id="title"
+                  placeholder="e.g., Launch my startup"
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                />
               </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                  {Math.round(yearProgress)}%
-                </div>
-                <div className="text-xs text-muted-foreground">Year Progress</div>
+              <div>
+                <Label htmlFor="category">Category</Label>
+                <Select
+                  value={formCategory}
+                  onValueChange={(value) => setFormCategory(value as GoalCategory)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(categoryConfig).map(([key, config]) => (
+                      <SelectItem key={key} value={key}>
+                        <div className="flex items-center gap-2">
+                          <config.icon className="h-4 w-4" />
+                          {config.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="why">Why? (Your Motivation)</Label>
+                <Textarea
+                  id="why"
+                  placeholder="What drives you to achieve this goal?"
+                  value={formWhy}
+                  onChange={(e) => setFormWhy(e.target.value)}
+                  rows={3}
+                />
+              </div>
+              <div>
+                <Label htmlFor="target-date">Target Date (Optional)</Label>
+                <Input
+                  id="target-date"
+                  type="date"
+                  value={formTargetDate}
+                  onChange={(e) => setFormTargetDate(e.target.value)}
+                />
               </div>
             </div>
-
-            {/* Year Progress Bar */}
-            <div className="space-y-2">
-              <Progress value={yearProgress} className="h-3" />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Jan 1, 2025</span>
-                <span>Dec 31, 2025</span>
-              </div>
-            </div>
-
-            {/* Motivational Quote */}
-            <div className="mt-4 p-3 bg-white/50 dark:bg-gray-900/50 rounded-lg border border-purple-100 dark:border-purple-900/30">
-              <p className="text-sm italic text-center text-muted-foreground">
-                "The future belongs to those who believe in the beauty of their dreams."
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveGoal} disabled={!formTitle.trim()}>
+                {dialogMode === "edit" ? "Update Goal" : "Create Goal"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Goals Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -276,8 +254,7 @@ export function GoalsView() {
             return (
               <Card
                 key={goal.id}
-                className="border-gray-200 dark:border-gray-800 hover:shadow-lg transition-shadow cursor-pointer rounded-xl"
-                onClick={() => handleEditGoal(goal)}
+                className="border-gray-200 dark:border-gray-800 hover:shadow-lg transition-shadow rounded-xl"
               >
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -296,9 +273,28 @@ export function GoalsView() {
                         </Badge>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="text-2xl font-bold text-[#C97152] dark:text-[#D4915E]">
                         {goal.progress}%
+                      </div>
+                      {/* Edit/Delete Actions */}
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-[#C97152]"
+                          onClick={(e) => handleOpenEditDialog(goal, e)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-red-600"
+                          onClick={(e) => handleDeleteGoal(goal.id, e)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -352,100 +348,6 @@ export function GoalsView() {
             );
           })}
         </div>
-
-        {/* View Goal Details Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Goal Details</DialogTitle>
-              <DialogDescription>
-                Progress for "{editingGoal?.title}" is automatically calculated from linked tasks
-              </DialogDescription>
-            </DialogHeader>
-            {editingGoal && (
-              <div className="space-y-6">
-                {/* Progress Stats */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-900/30 text-center">
-                    <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                      {editingGoal.progress}%
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">Progress</p>
-                  </div>
-                  <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-900/30 text-center">
-                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                      {editingGoal.completedTasks}/{editingGoal.totalTasks}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">Tasks Done</p>
-                  </div>
-                </div>
-
-                {/* Visual Progress Bar */}
-                <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg space-y-2">
-                  <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full transition-all duration-500",
-                        getProgressColor(editingGoal.progress, editingGoal.status)
-                      )}
-                      style={{ width: `${editingGoal.progress}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground text-center">
-                    💡 Link tasks to this goal to update progress automatically
-                  </p>
-                </div>
-
-                {/* Category & Status */}
-                <div className="flex gap-2">
-                  <Badge className={cn("flex items-center gap-1", categoryConfig[editingGoal.category].color)}>
-                    {React.createElement(categoryConfig[editingGoal.category].icon, { className: "h-3 w-3" })}
-                    {categoryConfig[editingGoal.category].label}
-                  </Badge>
-                  <Badge className={cn("flex items-center gap-1", statusConfig[editingGoal.status].color)}>
-                    {React.createElement(statusConfig[editingGoal.status].icon, { className: "h-3 w-3" })}
-                    {statusConfig[editingGoal.status].label}
-                  </Badge>
-                </div>
-
-                {/* Motivation Reminder */}
-                {editingGoal.why && (
-                  <div className="p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-900/30">
-                    <p className="text-xs font-semibold text-purple-700 dark:text-purple-400 mb-1">
-                      Remember why:
-                    </p>
-                    <p className="text-sm italic">{editingGoal.why}</p>
-                  </div>
-                )}
-
-                {/* Target Date */}
-                {editingGoal.targetDate && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
-                    <Calendar className="h-4 w-4" />
-                    <span>
-                      Target: {new Date(editingGoal.targetDate).toLocaleDateString("en-US", {
-                        month: "long",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsEditDialogOpen(false);
-                  setEditingGoal(null);
-                }}
-              >
-                Close
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </div>
   );
