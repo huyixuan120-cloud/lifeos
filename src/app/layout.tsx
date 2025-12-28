@@ -47,8 +47,10 @@ export default function RootLayout({
             <LifeOSProvider>
               <div className="flex h-screen overflow-hidden">
                 <Sidebar />
-                <main className="flex-1 w-full max-w-[1600px] mx-auto ml-0 md:ml-16 p-4 md:p-8 overflow-y-auto pb-20 md:pb-0">
-                  {children}
+                <main className="flex-1 ml-0 md:ml-16 overflow-y-auto pb-20 md:pb-0">
+                  <div className="w-full max-w-7xl mx-auto p-8 md:p-12 border-2 border-red-500">
+                    {children}
+                  </div>
                 </main>
                 <MobileNav />
               </div>
