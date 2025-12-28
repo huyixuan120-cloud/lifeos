@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
@@ -178,12 +179,22 @@ export function Sidebar() {
     <TooltipProvider delayDuration={0}>
       <aside className="hidden md:flex fixed left-0 top-0 z-40 h-screen w-16 border-r bg-background">
         <div className="flex h-full flex-col items-center justify-between py-4">
-          {/* Top Navigation Icons */}
-          <nav className="flex flex-col items-center gap-2">
+          {/* Top Section: Logo + Navigation */}
+          <div className="flex flex-col items-center gap-4">
+            {/* Logo */}
+            <Link href="/" className="flex items-center justify-center w-12 h-12 rounded-lg hover:bg-accent transition-colors">
+              <div className="relative w-8 h-8">
+                <Image src="/logo.png" alt="LifeOS" fill className="object-contain" />
+              </div>
+            </Link>
+
+            {/* Navigation Icons */}
+            <nav className="flex flex-col items-center gap-2">
             {navigationItems.map((item, index) => (
               <NavButton key={index} item={item} />
             ))}
           </nav>
+          </div>
 
           {/* Bottom Footer Icons */}
           <div className="flex flex-col items-center gap-2">
