@@ -548,15 +548,19 @@ export async function deleteGoogleCalendarEvent(
       },
     });
 
-    if (!response.ok && response.status !== 204) {
-      const errorData = await response.json().catch(() => ({}));
-      return {
-        success: false,
-        error: `Failed to delete Google event: ${errorData.error?.message || response.statusText}`,
-      };
+    // 204 = successfully deleted
+    // 404 = not found (already deleted)
+    // 410 = gone (already deleted)
+    if (response.ok || response.status === 204 || response.status === 404 || response.status === 410) {
+      return { success: true, error: null };
     }
 
-    return { success: true, error: null };
+    // Any other error is a real failure
+    const errorData = await response.json().catch(() => ({}));
+    return {
+      success: false,
+      error: `Failed to delete Google event: ${errorData.error?.message || response.statusText}`,
+    };
   } catch (error) {
     return {
       success: false,

@@ -152,6 +152,7 @@ export function toFullCalendarEvent(event: LifeOSEvent) {
       description: event.description,
       status: event.status,
       user_id: event.user_id,
+      google_event_id: event.google_event_id, // Include for deduplication
     },
   };
 }
