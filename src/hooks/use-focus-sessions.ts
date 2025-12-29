@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
 import { createClient } from "@/utils/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 interface FocusSession {
   id: string;
@@ -46,9 +46,8 @@ export function useFocusSessions(): UseFocusSessionsReturn {
   const [sessions, setSessions] = useState<FocusSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
-  // Get NextAuth session
-  const { data: session, status } = useSession();
   const supabase = createClient();
 
   /**
@@ -59,26 +58,20 @@ export function useFocusSessions(): UseFocusSessionsReturn {
       setIsLoading(true);
       setError(null);
 
-      // Wait for auth to finish loading
-      if (status === "loading") {
-        console.log("⏳ Auth loading - waiting...");
-        return;
-      }
-
       // Check if user is authenticated
-      if (!session?.user) {
+      if (!user) {
         console.log("⚠️ No authenticated user - skipping session fetch");
         setSessions([]);
         setIsLoading(false);
         return;
       }
 
-      console.log("📥 Fetching focus sessions for user:", session.user.id);
+      console.log("📥 Fetching focus sessions for user:", user.id);
 
       const { data, error: fetchError } = await supabase
         .from("focus_sessions")
         .select("*")
-        .eq("user_id", session.user.id)
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
       if (fetchError) {
@@ -116,7 +109,7 @@ export function useFocusSessions(): UseFocusSessionsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [supabase, session, status]);
+  }, [supabase, user]);
 
   /**
    * Adds a new focus session
@@ -126,21 +119,17 @@ export function useFocusSessions(): UseFocusSessionsReturn {
       try {
         setError(null);
 
-        if (status === "loading") {
-          throw new Error("Authentication still loading. Please wait a moment.");
-        }
-
-        if (status === "unauthenticated" || !session?.user?.id) {
-          console.error("❌ Not authenticated - status:", status);
+        if (!user) {
+          console.error("❌ Not authenticated");
           throw new Error("Not authenticated. Please sign in to save focus sessions.");
         }
 
-        console.log("📤 Inserting focus session with NextAuth user:", session.user.id);
+        console.log("📤 Inserting focus session for user:", user.id);
 
         const { data, error: insertError } = await supabase
           .from("focus_sessions")
           .insert({
-            user_id: session.user.id,
+            user_id: user.id,
             task_id: sessionData.task_id || null,
             minutes: sessionData.minutes,
             mode: sessionData.mode || "pomodoro",
@@ -170,7 +159,7 @@ export function useFocusSessions(): UseFocusSessionsReturn {
         throw err;
       }
     },
-    [supabase, session, status]
+    [supabase, user]
   );
 
   /**
@@ -194,7 +183,24 @@ export function useFocusSessions(): UseFocusSessionsReturn {
     return sessions.reduce((total, session) => total + session.minutes, 0);
   }, [sessions]);
 
-  // Fetch sessions on mount
+  // Listen to Supabase auth state changes
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase]);
+
+  // Fetch sessions when user changes
   useEffect(() => {
     fetchSessions();
   }, [fetchSessions]);

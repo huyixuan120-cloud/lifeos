@@ -92,6 +92,13 @@ export interface LifeOSEvent {
    * Currently optional, will be required when auth is implemented
    */
   user_id?: string | null;
+
+  /**
+   * Google Calendar event ID for synced events
+   * NULL if the event is local-only (not synced to Google Calendar)
+   * Used for 2-way sync: updates/deletes are propagated to Google
+   */
+  google_event_id?: string | null;
 }
 
 /**

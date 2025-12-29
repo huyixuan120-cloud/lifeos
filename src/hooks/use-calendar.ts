@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
+import type { User } from "@supabase/supabase-js";
 import type { EventInput } from "@fullcalendar/core";
 import type {
   LifeOSEvent,
@@ -52,6 +53,7 @@ export function useCalendar(): UseCalendarReturn {
   const [events, setEvents] = useState<EventInput[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   const supabase = createClient();
 
@@ -121,6 +123,10 @@ export function useCalendar(): UseCalendarReturn {
       try {
         setError(null);
 
+        if (!user) {
+          throw new Error("Not authenticated. Please sign in.");
+        }
+
         // Prepare data for database insertion
         const dbEvent = {
           title: eventData.title,
@@ -132,9 +138,10 @@ export function useCalendar(): UseCalendarReturn {
           background_color: eventData.background_color ?? "#3b82f6",
           border_color: eventData.border_color ?? "#3b82f6",
           text_color: eventData.text_color ?? "#ffffff",
-          user_id: eventData.user_id ?? null,
+          user_id: user.id, // Always use authenticated user's ID
         };
 
+        // Step 1: Insert into Supabase first
         const { data, error: insertError } = await supabase
           .from("events")
           .insert([dbEvent])
@@ -147,11 +154,54 @@ export function useCalendar(): UseCalendarReturn {
           throw insertError;
         }
 
-        if (data) {
-          // Optimistic update: add the new event to the local state
-          const newEvent = toFullCalendarEvent(data as LifeOSEvent);
-          setEvents((prev) => [...prev, newEvent]);
+        if (!data) {
+          throw new Error("Failed to create event - no data returned");
         }
+
+        // Step 2: Try to sync to Google Calendar (if connected)
+        try {
+          const { isGoogleCalendarConnected, createGoogleCalendarEvent } = await import("@/lib/googleCalendar");
+          const isConnected = await isGoogleCalendarConnected();
+
+          if (isConnected) {
+            console.log("📤 Syncing event to Google Calendar...");
+
+            const { eventId: googleEventId, error: googleError } = await createGoogleCalendarEvent({
+              title: eventData.title,
+              start: eventData.start,
+              end: eventData.end,
+              description: eventData.description,
+              allDay: eventData.all_day,
+              backgroundColor: eventData.background_color,
+            });
+
+            if (googleEventId && !googleError) {
+              // Step 3: Update Supabase record with google_event_id
+              const { error: updateError } = await supabase
+                .from("events")
+                .update({ google_event_id: googleEventId })
+                .eq("id", data.id);
+
+              if (updateError) {
+                console.warn("⚠️ Failed to save google_event_id:", updateError);
+              } else {
+                console.log("✅ Event synced to Google Calendar:", googleEventId);
+                // Update local data with google_event_id
+                data.google_event_id = googleEventId;
+              }
+            } else if (googleError) {
+              console.warn("⚠️ Failed to sync to Google Calendar:", googleError);
+              // Event still saved locally, just not synced to Google
+            }
+          }
+        } catch (syncError) {
+          console.warn("⚠️ Google Calendar sync failed (event saved locally):", syncError);
+          // Non-fatal: event is saved in Supabase, just not synced to Google
+        }
+
+        // Step 4: Optimistic update - add the new event to the local state
+        const newEvent = toFullCalendarEvent(data as LifeOSEvent);
+        setEvents((prev) => [...prev, newEvent]);
 
         console.log("✅ Event created successfully:", data);
       } catch (err) {
@@ -160,7 +210,7 @@ export function useCalendar(): UseCalendarReturn {
         throw err;
       }
     },
-    [supabase]
+    [supabase, user]
   );
 
   /**
@@ -174,6 +224,24 @@ export function useCalendar(): UseCalendarReturn {
       try {
         setError(null);
 
+        if (!user) {
+          throw new Error("Not authenticated. Please sign in.");
+        }
+
+        // Step 1: Get the current event to check if it has a google_event_id
+        const { data: currentEvent, error: fetchError } = await supabase
+          .from("events")
+          .select("google_event_id")
+          .eq("id", id)
+          .eq("user_id", user.id)
+          .single();
+
+        if (fetchError) {
+          console.error("Error fetching event:", fetchError);
+          setError(fetchError.message);
+          throw fetchError;
+        }
+
         // Prepare update data (only include provided fields)
         const updateData: any = {};
         if (eventData.title !== undefined) updateData.title = eventData.title;
@@ -186,10 +254,12 @@ export function useCalendar(): UseCalendarReturn {
         if (eventData.border_color !== undefined) updateData.border_color = eventData.border_color;
         if (eventData.text_color !== undefined) updateData.text_color = eventData.text_color;
 
+        // Step 2: Update in Supabase
         const { data, error: updateError } = await supabase
           .from("events")
           .update(updateData)
           .eq("id", id)
+          .eq("user_id", user.id) // Ensure user owns the event
           .select()
           .single();
 
@@ -199,8 +269,38 @@ export function useCalendar(): UseCalendarReturn {
           throw updateError;
         }
 
+        // Step 3: Sync to Google Calendar if this event is synced
+        if (currentEvent?.google_event_id) {
+          try {
+            const { updateGoogleCalendarEvent } = await import("@/lib/googleCalendar");
+
+            console.log("📤 Syncing update to Google Calendar...");
+
+            const { success, error: googleError } = await updateGoogleCalendarEvent(
+              currentEvent.google_event_id,
+              {
+                title: eventData.title,
+                start: eventData.start,
+                end: eventData.end,
+                description: eventData.description,
+                backgroundColor: eventData.background_color,
+              }
+            );
+
+            if (!success) {
+              console.warn("⚠️ Failed to sync update to Google Calendar:", googleError);
+              // Event still updated locally, just not synced to Google
+            } else {
+              console.log("✅ Update synced to Google Calendar");
+            }
+          } catch (syncError) {
+            console.warn("⚠️ Google Calendar sync failed (event updated locally):", syncError);
+            // Non-fatal: event is updated in Supabase, just not synced to Google
+          }
+        }
+
+        // Step 4: Optimistic update - update the event in local state
         if (data) {
-          // Optimistic update: update the event in local state
           const updatedEvent = toFullCalendarEvent(data as LifeOSEvent);
           setEvents((prev) =>
             prev.map((event) => (event.id === id ? updatedEvent : event))
@@ -214,7 +314,7 @@ export function useCalendar(): UseCalendarReturn {
         throw err;
       }
     },
-    [supabase]
+    [supabase, user]
   );
 
   /**
@@ -227,10 +327,30 @@ export function useCalendar(): UseCalendarReturn {
       try {
         setError(null);
 
+        if (!user) {
+          throw new Error("Not authenticated. Please sign in.");
+        }
+
+        // Step 1: Get the current event to check if it has a google_event_id
+        const { data: currentEvent, error: fetchError } = await supabase
+          .from("events")
+          .select("google_event_id")
+          .eq("id", id)
+          .eq("user_id", user.id)
+          .single();
+
+        if (fetchError) {
+          console.error("Error fetching event:", fetchError);
+          setError(fetchError.message);
+          throw fetchError;
+        }
+
+        // Step 2: Delete from Supabase
         const { error: deleteError } = await supabase
           .from("events")
           .delete()
-          .eq("id", id);
+          .eq("id", id)
+          .eq("user_id", user.id); // Ensure user owns the event
 
         if (deleteError) {
           console.error("Error deleting event:", deleteError);
@@ -238,7 +358,30 @@ export function useCalendar(): UseCalendarReturn {
           throw deleteError;
         }
 
-        // Optimistic update: remove the event from local state
+        // Step 3: Delete from Google Calendar if this event is synced
+        if (currentEvent?.google_event_id) {
+          try {
+            const { deleteGoogleCalendarEvent } = await import("@/lib/googleCalendar");
+
+            console.log("📤 Deleting from Google Calendar...");
+
+            const { success, error: googleError } = await deleteGoogleCalendarEvent(
+              currentEvent.google_event_id
+            );
+
+            if (!success) {
+              console.warn("⚠️ Failed to delete from Google Calendar:", googleError);
+              // Event already deleted locally, but still exists in Google
+            } else {
+              console.log("✅ Event deleted from Google Calendar");
+            }
+          } catch (syncError) {
+            console.warn("⚠️ Google Calendar delete failed (event deleted locally):", syncError);
+            // Non-fatal: event is deleted from Supabase, just not from Google
+          }
+        }
+
+        // Step 4: Optimistic update - remove the event from local state
         setEvents((prev) => prev.filter((event) => event.id !== id));
 
         console.log("✅ Event deleted successfully");
@@ -248,13 +391,36 @@ export function useCalendar(): UseCalendarReturn {
         throw err;
       }
     },
-    [supabase]
+    [supabase, user]
   );
 
-  // Fetch events on mount
+  // Listen to Supabase auth state changes
   useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase]);
+
+  // Fetch events when user changes
+  useEffect(() => {
+    if (user) {
+      fetchEvents();
+    } else {
+      // Clear events if user logs out
+      setEvents([]);
+      setIsLoading(false);
+    }
+  }, [user, fetchEvents]);
 
   return {
     events,

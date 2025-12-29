@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
 import { createClient } from "@/utils/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 interface UserProfile {
   id: string;
@@ -42,9 +42,8 @@ export function useUserProfile(): UseUserProfileReturn {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
-  // Get NextAuth session
-  const { data: session, status } = useSession();
   const supabase = createClient();
 
   /**
@@ -55,26 +54,20 @@ export function useUserProfile(): UseUserProfileReturn {
       setIsLoading(true);
       setError(null);
 
-      // Wait for auth to finish loading
-      if (status === "loading") {
-        console.log("⏳ Auth loading - waiting...");
-        return;
-      }
-
       // Check if user is authenticated
-      if (!session?.user) {
+      if (!user) {
         console.log("⚠️ No authenticated user - skipping profile fetch");
         setProfile(null);
         setIsLoading(false);
         return;
       }
 
-      console.log("📥 Fetching profile for user:", session.user.id);
+      console.log("📥 Fetching profile for user:", user.id);
 
       const { data, error: fetchError } = await supabase
         .from("user_profiles")
         .select("*")
-        .eq("id", session.user.id)
+        .eq("id", user.id)
         .single();
 
       if (fetchError) {
@@ -120,7 +113,7 @@ export function useUserProfile(): UseUserProfileReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [supabase, session, status]);
+  }, [supabase, user]);
 
   /**
    * Creates a new user profile
@@ -130,20 +123,16 @@ export function useUserProfile(): UseUserProfileReturn {
       try {
         setError(null);
 
-        if (status === "loading") {
-          throw new Error("Authentication still loading. Please wait a moment.");
-        }
-
-        if (status === "unauthenticated" || !session?.user?.id) {
+        if (!user) {
           throw new Error("Not authenticated. Please sign in.");
         }
 
-        console.log("📤 Creating profile for user:", session.user.id);
+        console.log("📤 Creating profile for user:", user.id);
 
         const { data, error: insertError } = await supabase
           .from("user_profiles")
           .insert({
-            id: session.user.id,
+            id: user.id,
             name,
             email,
             xp: 0,
@@ -172,7 +161,7 @@ export function useUserProfile(): UseUserProfileReturn {
         throw err;
       }
     },
-    [supabase, session, status]
+    [supabase, user]
   );
 
   /**
@@ -183,20 +172,16 @@ export function useUserProfile(): UseUserProfileReturn {
       try {
         setError(null);
 
-        if (status === "loading") {
-          throw new Error("Authentication still loading. Please wait a moment.");
-        }
-
-        if (status === "unauthenticated" || !session?.user?.id) {
+        if (!user) {
           throw new Error("Not authenticated. Please sign in.");
         }
 
-        console.log("📤 Updating profile for user:", session.user.id);
+        console.log("📤 Updating profile for user:", user.id);
 
         // If no profile exists, create one first
         if (!profile) {
-          const name = updates.name || session.user.name || "LifeOS User";
-          const email = updates.email || session.user.email || "";
+          const name = updates.name || user.user_metadata?.name || "LifeOS User";
+          const email = updates.email || user.email || "";
           await createProfile(name, email);
           return;
         }
@@ -204,7 +189,7 @@ export function useUserProfile(): UseUserProfileReturn {
         const { data, error: updateError } = await supabase
           .from("user_profiles")
           .update(updates)
-          .eq("id", session.user.id)
+          .eq("id", user.id)
           .select()
           .single();
 
@@ -223,10 +208,27 @@ export function useUserProfile(): UseUserProfileReturn {
         throw err;
       }
     },
-    [supabase, session, status, profile, createProfile]
+    [supabase, user, profile, createProfile]
   );
 
-  // Fetch profile on mount
+  // Listen to Supabase auth state changes
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase]);
+
+  // Fetch profile when user changes
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);

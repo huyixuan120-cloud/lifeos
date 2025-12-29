@@ -8,7 +8,14 @@ import interactionPlugin, { Draggable, type DateClickArg, type EventReceiveArg }
 import type { EventClickArg, DateSelectArg, EventChangeArg } from "@fullcalendar/core";
 import { useCalendar } from "@/hooks/use-calendar";
 import { useTasks } from "@/hooks/use-tasks";
-import { getGoogleCalendarEvents, type CalendarEvent } from "@/lib/googleCalendar";
+import {
+  getGoogleCalendarEvents,
+  getGoogleCalendarEventsInRange,
+  updateGoogleCalendarEvent,
+  deleteGoogleCalendarEvent,
+  mapGoogleColorIdToHex,
+  type CalendarEvent
+} from "@/lib/googleCalendar";
 import { Loader2, GripVertical, Calendar as CalendarIcon, Plus, X, Trash2, Clock, AlignLeft, MapPin, CheckSquare } from "lucide-react";
 import { PRIORITY_COLORS } from "@/types/tasks";
 import type { LifeOSTask } from "@/types/tasks";
@@ -43,6 +50,7 @@ interface DialogState {
   mode: "create" | "edit";
   eventId?: string;
   initialData?: Partial<EventFormValues>;
+  isGoogleEvent?: boolean;
 }
 
 interface DraftEvent {
@@ -97,6 +105,7 @@ export function CalendarView() {
   // Google Calendar Integration
   const [googleEvents, setGoogleEvents] = useState<CalendarEvent[]>([]);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
+  const [currentDateRange, setCurrentDateRange] = useState<{ start: Date; end: Date } | null>(null);
 
   const [dialogState, setDialogState] = useState<DialogState>({
     isOpen: false,
@@ -157,11 +166,11 @@ export function CalendarView() {
     }
   }, [tasks]);
 
-  // Fetch Google Calendar events on mount
-  useEffect(() => {
-    const fetchGoogleEvents = async () => {
-      setIsLoadingGoogle(true);
+  // Fetch Google Calendar events for a specific date range
+  const fetchGoogleEventsForRange = useCallback(async (startDate: Date, endDate: Date) => {
+    setIsLoadingGoogle(true);
 
+    try {
       // Import isGoogleCalendarConnected to check auth status first
       const { isGoogleCalendarConnected } = await import("@/lib/googleCalendar");
       const isConnected = await isGoogleCalendarConnected();
@@ -172,21 +181,33 @@ export function CalendarView() {
         return;
       }
 
-      const { events: googleCalendarEvents, error: googleError } = await getGoogleCalendarEvents();
+      console.log(`🔄 Fetching Google events from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+
+      const { events: googleCalendarEvents, error: googleError } = await getGoogleCalendarEventsInRange(
+        startDate,
+        endDate
+      );
 
       if (googleError) {
         console.warn("⚠️ Could not fetch Google Calendar events:", googleError);
         // Silently fail - user can still use local calendar
       } else if (googleCalendarEvents) {
         setGoogleEvents(googleCalendarEvents);
-        console.log(`✅ Loaded ${googleCalendarEvents.length} Google Calendar events`);
+        console.log(`✅ Loaded ${googleCalendarEvents.length} Google Calendar events for range`);
       }
-
+    } catch (error) {
+      console.error("❌ Error fetching Google Calendar events:", error);
+    } finally {
       setIsLoadingGoogle(false);
-    };
-
-    fetchGoogleEvents();
+    }
   }, []);
+
+  // Fetch Google Calendar events when date range changes
+  useEffect(() => {
+    if (currentDateRange) {
+      fetchGoogleEventsForRange(currentDateRange.start, currentDateRange.end);
+    }
+  }, [currentDateRange, fetchGoogleEventsForRange]);
 
   const handleEventReceive = async (info: EventReceiveArg) => {
     const { event } = info;
@@ -316,10 +337,12 @@ export function CalendarView() {
   const handleEventClick = (clickInfo: EventClickArg) => {
     const { event } = clickInfo;
 
+    // Now Google events are editable too!
     setDialogState({
       isOpen: true,
       mode: "edit",
       eventId: event.id,
+      isGoogleEvent: event.extendedProps?.isGoogleEvent || false,
       initialData: {
         title: event.title,
         description: event.extendedProps?.description || "",
@@ -336,36 +359,87 @@ export function CalendarView() {
 
     if (!event.id) {
       console.error("Event has no ID, cannot update");
+      changeInfo.revert();
       return;
     }
 
-    try {
-      await updateEvent(event.id, {
-        start: event.start?.toISOString() || "",
-        end: event.end?.toISOString() || event.start?.toISOString() || "",
-        all_day: event.allDay,
-      });
+    const isGoogleEvent = event.extendedProps?.isGoogleEvent;
 
-      console.log("✅ Event updated via drag/drop");
+    try {
+      if (isGoogleEvent) {
+        // Extract the real Google event ID (remove "google-" prefix)
+        const googleEventId = event.id.startsWith("google-")
+          ? event.id.substring(7)
+          : event.id;
+
+        // Update in Google Calendar
+        const { success, error } = await updateGoogleCalendarEvent(googleEventId, {
+          start: event.start?.toISOString() || "",
+          end: event.end?.toISOString() || event.start?.toISOString() || "",
+          allDay: event.allDay, // Pass allDay flag to handle all-day vs timed events
+        });
+
+        if (!success) {
+          throw new Error(error || "Failed to update Google event");
+        }
+
+        console.log("✅ Google event updated via drag/drop");
+      } else {
+        // Update in LifeOS database
+        await updateEvent(event.id, {
+          start: event.start?.toISOString() || "",
+          end: event.end?.toISOString() || event.start?.toISOString() || "",
+          all_day: event.allDay,
+        });
+
+        console.log("✅ LifeOS event updated via drag/drop");
+      }
     } catch (error) {
       console.error("Failed to update event:", error);
       changeInfo.revert();
-      alert("Failed to update event. Please try again.");
+      alert(`Failed to update event. ${error instanceof Error ? error.message : ""}`);
     }
   };
 
   const handleDialogSubmit = async (data: EventFormValues) => {
     try {
       if (dialogState.mode === "edit" && dialogState.eventId) {
-        await updateEvent(dialogState.eventId, {
-          title: data.title,
-          description: data.description,
-          start: parseInputToISO(data.start),
-          end: parseInputToISO(data.end),
-          all_day: data.all_day,
-          background_color: data.background_color,
-        });
+        // Check if it's a Google event
+        if (dialogState.isGoogleEvent) {
+          // Extract the real Google event ID (remove "google-" prefix)
+          const googleEventId = dialogState.eventId.startsWith("google-")
+            ? dialogState.eventId.substring(7)
+            : dialogState.eventId;
+
+          // Update in Google Calendar
+          const { success, error } = await updateGoogleCalendarEvent(googleEventId, {
+            title: data.title,
+            description: data.description,
+            start: parseInputToISO(data.start),
+            end: parseInputToISO(data.end),
+            backgroundColor: data.background_color,
+          });
+
+          if (!success) {
+            throw new Error(error || "Failed to update Google event");
+          }
+
+          console.log("✅ Google event updated");
+        } else {
+          // Update in LifeOS database
+          await updateEvent(dialogState.eventId, {
+            title: data.title,
+            description: data.description,
+            start: parseInputToISO(data.start),
+            end: parseInputToISO(data.end),
+            all_day: data.all_day,
+            background_color: data.background_color,
+          });
+
+          console.log("✅ LifeOS event updated");
+        }
       } else {
+        // Always create new events in LifeOS (not Google)
         await addEvent({
           title: data.title,
           description: data.description,
@@ -375,6 +449,8 @@ export function CalendarView() {
           background_color: data.background_color,
           status: "active",
         });
+
+        console.log("✅ New LifeOS event created");
       }
     } catch (error) {
       console.error("Failed to save event:", error);
@@ -386,7 +462,25 @@ export function CalendarView() {
     if (!dialogState.eventId) return;
 
     try {
-      await deleteEvent(dialogState.eventId);
+      if (dialogState.isGoogleEvent) {
+        // Extract the real Google event ID (remove "google-" prefix)
+        const googleEventId = dialogState.eventId.startsWith("google-")
+          ? dialogState.eventId.substring(7)
+          : dialogState.eventId;
+
+        // Delete from Google Calendar
+        const { success, error } = await deleteGoogleCalendarEvent(googleEventId);
+
+        if (!success) {
+          throw new Error(error || "Failed to delete Google event");
+        }
+
+        console.log("✅ Google event deleted");
+      } else {
+        // Delete from LifeOS database
+        await deleteEvent(dialogState.eventId);
+        console.log("✅ LifeOS event deleted");
+      }
     } catch (error) {
       console.error("Failed to delete event:", error);
       throw error;
@@ -429,25 +523,37 @@ export function CalendarView() {
   // Merge Google Calendar events with local events
   const mergedEvents = [
     ...events,
-    ...googleEvents.map((gEvent) => ({
-      id: `google-${gEvent.id}`,
-      title: gEvent.title,
-      start: gEvent.start,
-      end: gEvent.end,
-      backgroundColor: "#4285F4", // Google Blue
-      borderColor: "#4285F4",
-      textColor: "#ffffff",
-      editable: false, // Google events are read-only
-      extendedProps: {
-        isGoogleEvent: true, // Mark as Google event
-        description: gEvent.description || "",
-      },
-    })),
+    ...googleEvents.map((gEvent) => {
+      // Detect if it's an all-day event (Google uses 'date' format for all-day events)
+      // If the start date doesn't contain 'T' (time separator), it's a date-only string
+      const isAllDay = typeof gEvent.start === 'string' && !gEvent.start.includes('T');
+
+      // Get the actual color from Google Calendar (or default to blue)
+      const eventColor = mapGoogleColorIdToHex(gEvent.colorId);
+
+      return {
+        id: `google-${gEvent.id}`,
+        title: gEvent.title,
+        start: gEvent.start,
+        end: gEvent.end,
+        allDay: isAllDay, // Set allDay flag for proper handling
+        backgroundColor: eventColor, // Use actual Google Calendar color
+        borderColor: eventColor,
+        textColor: "#ffffff",
+        editable: true, // Google events are now editable and sync to Google Calendar
+        extendedProps: {
+          isGoogleEvent: true, // Mark as Google event
+          description: gEvent.description || "",
+        },
+      };
+    }),
   ];
 
   const incompleteTasks = tasks.filter((task) => !task.is_completed);
 
-  if (isLoading || isLoadingGoogle) {
+  // Only block on local events loading, not Google events
+  // Google events will load in background and appear when ready
+  if (isLoading) {
     return (
       <div className="h-full w-full p-6">
         <div className="bg-background rounded-lg border shadow-sm h-full overflow-hidden">
@@ -502,6 +608,14 @@ export function CalendarView() {
                 dayMaxEvents={true}
                 weekends={true}
                 droppable={true}
+                datesSet={(dateInfo) => {
+                  // Triggered when user navigates to a different month/week/day
+                  console.log(`📅 Calendar view changed: ${dateInfo.start.toISOString()} - ${dateInfo.end.toISOString()}`);
+                  setCurrentDateRange({
+                    start: dateInfo.start,
+                    end: dateInfo.end,
+                  });
+                }}
                 dateClick={handleDateClick}
                 select={handleDateSelect}
                 eventClick={handleEventClick}

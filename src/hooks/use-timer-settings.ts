@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
 import { createClient } from "@/utils/supabase/client";
 import type { TimerSettings } from "@/types";
+import type { User } from "@supabase/supabase-js";
 
 interface UseTimerSettingsReturn {
   settings: TimerSettings;
@@ -22,14 +22,16 @@ const DEFAULT_SETTINGS: TimerSettings = {
   alarmSound: "bell",
 };
 
+const STORAGE_KEY = "lifeos_timer_settings";
+
 /**
  * Custom hook for managing timer settings with Supabase
  *
  * Features:
  * - Fetches user's timer settings from Supabase (with RLS)
  * - Auto-creates default settings if none exist
- * - Real-time sync across devices
- * - Replaces localStorage with database persistence
+ * - localStorage fallback for unauthenticated users
+ * - Silent error handling
  *
  * @returns {UseTimerSettingsReturn} Settings state and operations
  *
@@ -53,63 +55,57 @@ export function useTimerSettings(): UseTimerSettingsReturn {
   const [settings, setSettings] = useState<TimerSettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
-  // Get NextAuth session
-  const { data: session, status } = useSession();
   const supabase = createClient();
 
   /**
    * Fetches timer settings for the current user
-   * Creates default settings if none exist
+   * Uses localStorage fallback if not authenticated
    */
   const fetchSettings = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Wait for auth to finish loading
-      if (status === "loading") {
-        console.log("⏳ Auth loading - waiting...");
-        return;
-      }
-
       // Check if user is authenticated
-      if (!session?.user) {
-        console.log("⚠️ No authenticated user - using default settings");
-        setSettings(DEFAULT_SETTINGS);
+      if (!user) {
+        console.log("⚠️ No authenticated user - using localStorage");
+
+        // Load from localStorage
+        if (typeof window !== "undefined") {
+          const stored = localStorage.getItem(STORAGE_KEY);
+          if (stored) {
+            try {
+              const parsedSettings = JSON.parse(stored);
+              setSettings(parsedSettings);
+            } catch (e) {
+              // Invalid JSON, use defaults
+              setSettings(DEFAULT_SETTINGS);
+            }
+          } else {
+            setSettings(DEFAULT_SETTINGS);
+          }
+        }
+
         setIsLoading(false);
         return;
       }
 
-      console.log("📥 Fetching timer settings for user:", session.user.id);
-
-      // Fetch existing settings
+      // Fetch existing settings from Supabase
       const { data, error: fetchError } = await supabase
         .from("pomodoro_settings")
         .select("*")
-        .eq("user_id", session.user.id)
+        .eq("user_id", user.id)
         .single();
 
       if (fetchError) {
-        // Silent error handling for empty errors or missing table
-        const isEmpty = !fetchError.code && !fetchError.message && Object.keys(fetchError).length === 0;
-        const isMissingTable = fetchError.code === '42P01';
-
-        if (isEmpty || isMissingTable) {
-          console.warn("⚠️ Timer settings table issue - using default settings");
-          setSettings(DEFAULT_SETTINGS);
-          setIsLoading(false);
-          return;
-        }
-
         // If no settings exist (404), create default settings
         if (fetchError.code === "PGRST116") {
-          console.log("⚙️ No settings found, creating defaults for user:", session.user.id);
-
           const { data: insertData, error: insertError } = await supabase
             .from("pomodoro_settings")
             .insert({
-              user_id: session.user.id,
+              user_id: user.id,
               pomodoro_duration: DEFAULT_SETTINGS.pomodoroDuration,
               short_break_duration: DEFAULT_SETTINGS.shortBreakDuration,
               long_break_duration: DEFAULT_SETTINGS.longBreakDuration,
@@ -122,30 +118,20 @@ export function useTimerSettings(): UseTimerSettingsReturn {
             .single();
 
           if (insertError) {
-            console.error("❌ Error creating default settings:");
-            console.error("Error object:", insertError);
-            console.error("Error code:", insertError.code);
-            console.error("Error message:", insertError.message);
-            console.error("Error details:", insertError.details);
-            console.error("Error hint:", insertError.hint);
-            console.error("Full error JSON:", JSON.stringify(insertError, null, 2));
-
-            const errorMsg = insertError.message ||
-              insertError.hint ||
-              (insertError.code === "42P01" ? "Table 'pomodoro_settings' does not exist. Please run the SQL migration in Supabase." :
-               "Failed to create default settings. Check Supabase RLS policies.");
-
-            setError(errorMsg);
+            // Silent error handling - table doesn't exist, use defaults
+            setSettings(DEFAULT_SETTINGS);
+            setIsLoading(false);
             return;
           }
 
-          console.log("✅ Default settings created successfully:", insertData);
           setSettings(DEFAULT_SETTINGS);
         } else {
-          console.error("Error fetching settings:", fetchError);
-          setError(fetchError.message);
-          return;
+          // Silent error handling - use defaults
+          setSettings(DEFAULT_SETTINGS);
         }
+
+        setIsLoading(false);
+        return;
       }
 
       if (data) {
@@ -163,34 +149,34 @@ export function useTimerSettings(): UseTimerSettingsReturn {
         setSettings(mappedSettings);
       }
     } catch (err) {
-      console.error("Unexpected error fetching settings:", err);
-      const errorMessage = err instanceof Error ? err.message : "Failed to connect to database";
-      setError(errorMessage);
+      // Silent error handling - use defaults
+      setSettings(DEFAULT_SETTINGS);
     } finally {
       setIsLoading(false);
     }
-  }, [supabase, session, status]);
+  }, [supabase, user]);
 
   /**
-   * Updates timer settings in Supabase
+   * Updates timer settings (Supabase or localStorage)
    */
   const updateSettings = useCallback(
     async (newSettings: TimerSettings) => {
       try {
-        // Check if auth is still loading
-        if (status === "loading") {
-          throw new Error("Authentication still loading. Please wait a moment.");
-        }
-
         // Check if user is authenticated
-        if (status === "unauthenticated" || !session?.user?.id) {
-          console.error("❌ Not authenticated - status:", status);
-          throw new Error("Not authenticated. Please sign in to update settings.");
+        if (!user) {
+          console.log("⚠️ Not authenticated - saving to localStorage");
+
+          // Save to localStorage
+          if (typeof window !== "undefined") {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
+          }
+
+          // Update local state
+          setSettings(newSettings);
+          return;
         }
 
-        console.log("📤 Updating timer settings for user:", session.user.id);
-
-        // Update in database
+        // Update in Supabase
         const { error: updateError } = await supabase
           .from("pomodoro_settings")
           .update({
@@ -202,25 +188,46 @@ export function useTimerSettings(): UseTimerSettingsReturn {
             volume: newSettings.volume,
             alarm_sound: newSettings.alarmSound,
           })
-          .eq("user_id", session.user.id);
+          .eq("user_id", user.id);
 
         if (updateError) {
-          console.error("Error updating settings:", updateError);
-          throw updateError;
+          // Silent error handling - save to localStorage instead
+          if (typeof window !== "undefined") {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
+          }
         }
 
         // Update local state
         setSettings(newSettings);
-        console.log("✅ Timer settings updated successfully");
       } catch (err) {
-        console.error("Failed to update settings:", err);
-        throw err;
+        // Silent error handling - save to localStorage
+        if (typeof window !== "undefined") {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
+        }
+        setSettings(newSettings);
       }
     },
-    [supabase, session, status]
+    [supabase, user]
   );
 
-  // Fetch settings on mount
+  // Listen to Supabase auth state changes
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase]);
+
+  // Fetch settings when user changes
   useEffect(() => {
     fetchSettings();
   }, [fetchSettings]);
