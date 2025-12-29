@@ -372,14 +372,14 @@ export async function createGoogleCalendarEvent(eventData: {
       eventPayload.start = { date: startDate };
       eventPayload.end = { date: endDate };
     } else {
-      // Timed events use 'dateTime' format
+      // Timed events use 'dateTime' format with Europe/Rome timezone
       eventPayload.start = {
         dateTime: eventData.start,
-        timeZone: 'UTC',
+        timeZone: 'Europe/Rome',
       };
       eventPayload.end = {
         dateTime: eventData.end,
-        timeZone: 'UTC',
+        timeZone: 'Europe/Rome',
       };
     }
 
@@ -462,10 +462,10 @@ export async function updateGoogleCalendarEvent(
         const startDate = new Date(updates.start).toISOString().split('T')[0];
         updatePayload.start = { date: startDate };
       } else {
-        // Timed events use 'dateTime' format
+        // Timed events use 'dateTime' format with Europe/Rome timezone
         updatePayload.start = {
           dateTime: updates.start,
-          timeZone: 'UTC',
+          timeZone: 'Europe/Rome',
         };
       }
     }
@@ -475,10 +475,10 @@ export async function updateGoogleCalendarEvent(
         const endDate = new Date(updates.end).toISOString().split('T')[0];
         updatePayload.end = { date: endDate };
       } else {
-        // Timed events use 'dateTime' format
+        // Timed events use 'dateTime' format with Europe/Rome timezone
         updatePayload.end = {
           dateTime: updates.end,
-          timeZone: 'UTC',
+          timeZone: 'Europe/Rome',
         };
       }
     }

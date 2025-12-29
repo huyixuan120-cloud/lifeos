@@ -8,6 +8,7 @@ import interactionPlugin, { Draggable, type DateClickArg, type EventReceiveArg }
 import type { EventClickArg, DateSelectArg, EventChangeArg } from "@fullcalendar/core";
 import { useCalendar } from "@/hooks/use-calendar";
 import { useTasks } from "@/hooks/use-tasks";
+import "./calendar-styles.css";
 import {
   getGoogleCalendarEvents,
   getGoogleCalendarEventsInRange,
@@ -613,6 +614,8 @@ export function CalendarView() {
                 ref={calendarRef}
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                 initialView="dayGridMonth"
+                initialDate={new Date()} // Start at today
+                timeZone="Europe/Rome" // Milano timezone
                 headerToolbar={{
                   left: "prev,next today",
                   center: "title",
