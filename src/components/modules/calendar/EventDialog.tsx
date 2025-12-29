@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -28,27 +28,92 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Trash2, Check } from "lucide-react";
 import { EVENT_COLORS, DEFAULT_EVENT_COLOR } from "@/constants/colors";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  RECURRENCE_PRESETS,
+  generateRRule,
+  type RecurrencePreset,
+  type RecurrenceEndType,
+} from "@/lib/recurrence";
+import { CustomRecurrenceDialog } from "./CustomRecurrenceDialog";
 
 /**
- * Helper function to format Date to datetime-local input format
- * Format: YYYY-MM-DDThh:mm
+ * NUOVA STRATEGIA TIMEZONE - APPROCCIO SEMPLICE E ROBUSTO
+ *
+ * 1. datetime-local input produce: "2025-12-29T14:00" (no timezone)
+ * 2. Noi interpretiamo come ora LOCALE Milano
+ * 3. Convertiamo esplicitamente a UTC per salvare nel DB
+ * 4. DB salva sempre UTC (standard)
+ * 5. Quando leggiamo, convertiamo da UTC a locale Milano
  */
-export function formatDateForInput(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const hours = String(d.getHours()).padStart(2, "0");
-  const minutes = String(d.getMinutes()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
+
+/**
+ * Converte datetime-local string (locale Milano) → ISO UTC per database
+ *
+ * @param localDateTimeString - "2025-12-29T14:00" dall'input
+ * @returns "2025-12-29T13:00:00.000Z" (UTC per DB)
+ */
+export function localToUTC(localDateTimeString: string): string {
+  // Input: "2025-12-29T14:00" (Milano)
+  // Parse come LOCAL time (Milano)
+  const [datePart, timePart] = localDateTimeString.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hours, minutes] = (timePart || '00:00').split(':').map(Number);
+
+  // Crea Date specificando esplicitamente i componenti LOCAL
+  // Questo interpreta l'ora come LOCAL time del browser (Milano)
+  const localDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+
+  // toISOString() converte automaticamente a UTC
+  // Es: 14:00 Milano (UTC+1) → 13:00 UTC
+  const utcString = localDate.toISOString();
+
+  console.log("🔍 localToUTC:", {
+    input: localDateTimeString,
+    localDate: localDate.toString(),
+    output: utcString,
+  });
+
+  return utcString;
 }
 
 /**
- * Helper function to parse datetime-local input to ISO string
+ * Converte ISO UTC dal database → datetime-local format (locale Milano)
+ *
+ * @param utcISOString - "2025-12-29T13:00:00+00:00" dal DB
+ * @returns "2025-12-29T14:00" per input datetime-local
  */
-export function parseInputToISO(dateString: string): string {
-  return new Date(dateString).toISOString();
+export function utcToLocal(utcISOString: string): string {
+  // Parse la stringa UTC
+  const date = new Date(utcISOString);
+
+  // Estrai componenti in LOCAL time (Milano)
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  const result = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+  console.log("🔍 utcToLocal:", {
+    input: utcISOString,
+    date: date.toString(),
+    output: result,
+  });
+
+  return result;
 }
+
+// Alias per backward compatibility
+export const formatDateForInput = utcToLocal;
+export const parseInputToISO = localToUTC;
 
 // Zod schema for event form validation
 const eventFormSchema = z
@@ -62,6 +127,11 @@ const eventFormSchema = z
     end: z.string().min(1, "End date is required"),
     all_day: z.boolean().optional(),
     background_color: z.string().optional(),
+    recurrence_preset: z.string().optional(),
+    recurrence_end_type: z.enum(['NEVER', 'ON_DATE', 'AFTER_COUNT']).optional(),
+    recurrence_end_date: z.string().optional(),
+    recurrence_end_count: z.number().min(1).max(999).optional(),
+    recurrence_custom: z.string().optional(),
   })
   .refine(
     (data) => {
@@ -125,6 +195,9 @@ export function EventDialog({
 }: EventDialogProps) {
   const isEditMode = mode === "edit" || !!initialData?.title;
 
+  // State for custom recurrence dialog
+  const [customRecurrenceDialogOpen, setCustomRecurrenceDialogOpen] = useState(false);
+
   const form = useForm<EventFormValues>({
     resolver: zodResolver(eventFormSchema),
     defaultValues: {
@@ -134,6 +207,11 @@ export function EventDialog({
       end: initialData?.end || formatDateForInput(new Date(Date.now() + 3600000)), // +1 hour
       all_day: initialData?.all_day || false,
       background_color: initialData?.background_color || DEFAULT_EVENT_COLOR.hex,
+      recurrence_preset: 'NONE',
+      recurrence_end_type: 'NEVER',
+      recurrence_end_date: '',
+      recurrence_end_count: 1,
+      recurrence_custom: '',
     },
   });
 
@@ -147,13 +225,48 @@ export function EventDialog({
         end: initialData?.end || formatDateForInput(new Date(Date.now() + 3600000)),
         all_day: initialData?.all_day || false,
         background_color: initialData?.background_color || DEFAULT_EVENT_COLOR.hex,
+        recurrence_preset: 'NONE',
+        recurrence_end_type: 'NEVER',
+        recurrence_end_date: '',
+        recurrence_end_count: 1,
+        recurrence_custom: '',
       });
     }
   }, [isOpen, initialData, form]);
 
   const handleSubmit = async (data: EventFormValues) => {
     try {
-      await onSubmit(data);
+      // Generate RRULE string from preset or use custom
+      let rruleString: string | null = null;
+
+      if (data.recurrence_preset && data.recurrence_preset !== 'NONE') {
+        if (data.recurrence_preset === 'CUSTOM') {
+          rruleString = data.recurrence_custom || null;
+        } else {
+          const startDate = new Date(data.start);
+          const endType = data.recurrence_end_type || 'NEVER';
+          const endValue = endType === 'ON_DATE'
+            ? data.recurrence_end_date
+            : endType === 'AFTER_COUNT'
+            ? data.recurrence_end_count
+            : undefined;
+
+          rruleString = generateRRule(
+            data.recurrence_preset as RecurrencePreset,
+            startDate,
+            endType as RecurrenceEndType,
+            endValue
+          );
+        }
+      }
+
+      // Submit with generated RRULE and properly formatted dates
+      await onSubmit({
+        ...data,
+        start: parseInputToISO(data.start),
+        end: parseInputToISO(data.end),
+        recurrence: rruleString,
+      });
       form.reset();
       onClose();
     } catch (error) {
@@ -165,17 +278,11 @@ export function EventDialog({
   const handleDelete = async () => {
     if (!onDelete) return;
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this event? This action cannot be undone."
-    );
-
-    if (confirmed) {
-      try {
-        await onDelete();
-        onClose();
-      } catch (error) {
-        console.error("Error deleting event:", error);
-      }
+    try {
+      await onDelete();
+      onClose();
+    } catch (error) {
+      console.error("Error deleting event:", error);
     }
   };
 
@@ -301,6 +408,187 @@ export function EventDialog({
               )}
             />
 
+            {/* Recurrence Dropdown */}
+            <FormField
+              control={form.control}
+              name="recurrence_preset"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Ripeti</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Non si ripete" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {RECURRENCE_PRESETS.map((preset) => {
+                        // Dynamic label generation based on start date
+                        let label = preset.label;
+                        const startDateValue = form.watch('start');
+                        if (startDateValue) {
+                          const startDate = new Date(startDateValue);
+
+                          if (preset.value === 'WEEKLY') {
+                            const weekdayNames = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
+                            label = `Ogni settimana di ${weekdayNames[startDate.getDay()]}`;
+                          } else if (preset.value === 'MONTHLY') {
+                            const dayOfMonth = startDate.getDate();
+                            const ordinal = Math.ceil(dayOfMonth / 7);
+                            const ordinalNames = ['primo', 'secondo', 'terzo', 'quarto', 'quinto'];
+                            const weekdayNames = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
+                            if (ordinal <= 5) {
+                              label = `Ogni mese il ${ordinalNames[ordinal - 1]} ${weekdayNames[startDate.getDay()]}`;
+                            }
+                          } else if (preset.value === 'YEARLY') {
+                            const dateStr = startDate.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
+                            label = `Ogni anno il ${dateStr}`;
+                          }
+                        }
+
+                        return (
+                          <SelectItem key={preset.value} value={preset.value}>
+                            {label}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Imposta la frequenza di ripetizione dell'evento
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Recurrence End Type (conditional) */}
+            {form.watch('recurrence_preset') && form.watch('recurrence_preset') !== 'NONE' && form.watch('recurrence_preset') !== 'CUSTOM' && (
+              <FormField
+                control={form.control}
+                name="recurrence_end_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Termina</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value || 'NEVER'}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Mai" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="NEVER">Mai</SelectItem>
+                        <SelectItem value="ON_DATE">Il...</SelectItem>
+                        <SelectItem value="AFTER_COUNT">Dopo...</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Quando termina la ricorrenza
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Recurrence End Date (conditional) */}
+            {form.watch('recurrence_end_type') === 'ON_DATE' && (
+              <FormField
+                control={form.control}
+                name="recurrence_end_date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Data fine ricorrenza</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      L'evento terminerà dopo questa data
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Recurrence End Count (conditional) */}
+            {form.watch('recurrence_end_type') === 'AFTER_COUNT' && (
+              <FormField
+                control={form.control}
+                name="recurrence_end_count"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Numero di occorrenze</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="999"
+                        value={field.value}
+                        onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      L'evento si ripeterà questo numero di volte
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Custom Recurrence Builder (conditional) */}
+            {form.watch('recurrence_preset') === 'CUSTOM' && (
+              <FormField
+                control={form.control}
+                name="recurrence_custom"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ricorrenza personalizzata</FormLabel>
+                    <FormControl>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => setCustomRecurrenceDialogOpen(true)}
+                      >
+                        {field.value
+                          ? `RRULE configurata: ${field.value.substring(0, 30)}${field.value.length > 30 ? '...' : ''}`
+                          : "Configura ricorrenza personalizzata..."}
+                      </Button>
+                    </FormControl>
+                    <FormDescription>
+                      Clicca per aprire il builder visuale
+                    </FormDescription>
+                    <FormMessage />
+
+                    {/* Custom Recurrence Dialog */}
+                    <CustomRecurrenceDialog
+                      open={customRecurrenceDialogOpen}
+                      onOpenChange={setCustomRecurrenceDialogOpen}
+                      onSave={(rrule) => {
+                        field.onChange(rrule);
+                      }}
+                      initialRRule={field.value}
+                      startDate={new Date(form.watch('start'))}
+                    />
+                  </FormItem>
+                )}
+              />
+            )}
+
             {/* Start Date/Time */}
             <FormField
               control={form.control}
@@ -311,7 +599,17 @@ export function EventDialog({
                   <FormControl>
                     <Input
                       type="datetime-local"
-                      {...field}
+                      value={field.value}
+                      onChange={(e) => {
+                        console.log("🔍 DEBUG Input onChange:", {
+                          rawValue: e.target.value,
+                          valueType: typeof e.target.value,
+                        });
+                        field.onChange(e.target.value);
+                      }}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
                     />
                   </FormControl>
                   <FormMessage />
@@ -329,7 +627,11 @@ export function EventDialog({
                   <FormControl>
                     <Input
                       type="datetime-local"
-                      {...field}
+                      value={field.value}
+                      onChange={(e) => field.onChange(e.target.value)}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
                     />
                   </FormControl>
                   <FormMessage />

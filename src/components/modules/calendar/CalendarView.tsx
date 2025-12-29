@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -8,6 +8,7 @@ import interactionPlugin, { Draggable, type DateClickArg, type EventReceiveArg }
 import type { EventClickArg, DateSelectArg, EventChangeArg } from "@fullcalendar/core";
 import { useCalendar } from "@/hooks/use-calendar";
 import { useTasks } from "@/hooks/use-tasks";
+import { expandRecurringEvent } from "@/lib/recurrence";
 import "./calendar-styles.css";
 import {
   getGoogleCalendarEvents,
@@ -107,6 +108,7 @@ export function CalendarView() {
   const [googleEvents, setGoogleEvents] = useState<CalendarEvent[]>([]);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [currentDateRange, setCurrentDateRange] = useState<{ start: Date; end: Date } | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
   const [dialogState, setDialogState] = useState<DialogState>({
     isOpen: false,
@@ -203,12 +205,30 @@ export function CalendarView() {
     }
   }, []);
 
-  // Fetch Google Calendar events when date range changes
+  // Check when Supabase auth is ready
   useEffect(() => {
-    if (currentDateRange) {
+    const checkAuth = async () => {
+      try {
+        const { createClient } = await import("@/utils/supabase/client");
+        const supabase = createClient();
+        const { data } = await supabase.auth.getSession();
+        setIsAuthReady(true);
+        console.log("🔐 Auth session loaded:", !!data.session);
+      } catch (error) {
+        console.error("Error checking auth:", error);
+        setIsAuthReady(true); // Set to true anyway to prevent blocking
+      }
+    };
+    checkAuth();
+  }, []);
+
+  // Fetch Google Calendar events when date range changes AND auth is ready
+  useEffect(() => {
+    if (currentDateRange && isAuthReady) {
+      console.log("📅 Fetching Google events (auth ready)");
       fetchGoogleEventsForRange(currentDateRange.start, currentDateRange.end);
     }
-  }, [currentDateRange, fetchGoogleEventsForRange]);
+  }, [currentDateRange, fetchGoogleEventsForRange, isAuthReady]);
 
   const handleEventReceive = async (info: EventReceiveArg) => {
     const { event } = info;
@@ -403,6 +423,13 @@ export function CalendarView() {
   };
 
   const handleDialogSubmit = async (data: EventFormValues) => {
+    console.log("🔍 DEBUG CalendarView - Raw data from EventDialog:", {
+      start: data.start,
+      end: data.end,
+      all_day: data.all_day,
+      startType: typeof data.start,
+    });
+
     try {
       if (dialogState.mode === "edit" && dialogState.eventId) {
         // Check if it's a Google event
@@ -413,11 +440,12 @@ export function CalendarView() {
             : dialogState.eventId;
 
           // Update in Google Calendar
+          // Note: EventDialog already calls parseInputToISO
           const { success, error } = await updateGoogleCalendarEvent(googleEventId, {
             title: data.title,
             description: data.description,
-            start: parseInputToISO(data.start),
-            end: parseInputToISO(data.end),
+            start: data.start,
+            end: data.end,
             backgroundColor: data.background_color,
           });
 
@@ -428,11 +456,12 @@ export function CalendarView() {
           console.log("✅ Google event updated");
         } else {
           // Update in LifeOS database
+          // Note: EventDialog already calls parseInputToISO, no need to call again
           await updateEvent(dialogState.eventId, {
             title: data.title,
             description: data.description,
-            start: parseInputToISO(data.start),
-            end: parseInputToISO(data.end),
+            start: data.start,
+            end: data.end,
             all_day: data.all_day,
             background_color: data.background_color,
           });
@@ -441,11 +470,17 @@ export function CalendarView() {
         }
       } else {
         // Always create new events in LifeOS (not Google)
+        // Note: EventDialog already calls parseInputToISO, no need to call again
+        console.log("🔍 DEBUG CalendarView - Event data:", {
+          start: data.start,
+          end: data.end,
+        });
+
         await addEvent({
           title: data.title,
           description: data.description,
-          start: parseInputToISO(data.start),
-          end: parseInputToISO(data.end),
+          start: data.start,
+          end: data.end,
           all_day: data.all_day,
           background_color: data.background_color,
           status: "active",
@@ -483,6 +518,16 @@ export function CalendarView() {
       } else {
         // Delete from LifeOS database
         await deleteEvent(dialogState.eventId);
+
+        // IMPORTANT: Also remove from googleEvents cache if this event was synced to Google
+        // This prevents the "ghost" event from appearing until the next refresh
+        const deletedEvent = events.find(e => e.id === dialogState.eventId);
+        if (deletedEvent?.extendedProps?.google_event_id) {
+          setGoogleEvents((prev) =>
+            prev.filter((e) => e.id !== deletedEvent.extendedProps.google_event_id)
+          );
+        }
+
         console.log("✅ LifeOS event deleted");
       }
 
@@ -527,10 +572,70 @@ export function CalendarView() {
     handleTaskDialogClose();
   };
 
+  // Expand recurring events into individual instances
+  // This is memoized for performance and only recalculates when events or date range changes
+  const expandedEvents = useMemo(() => {
+    if (!currentDateRange) {
+      // If no date range is set yet, return events as-is
+      return events;
+    }
+
+    // Separate parent recurring events, exception events, and normal events
+    const parentRecurringEvents = events.filter(e => e.extendedProps?.recurrence && !e.extendedProps?.recurrence_id);
+    const exceptionEvents = events.filter(e => e.extendedProps?.recurrence_id);
+    const normalEvents = events.filter(e => !e.extendedProps?.recurrence);
+
+    // Expand parent recurring events into instances
+    const expandedRecurringInstances = parentRecurringEvents.flatMap(event => {
+      // Convert FullCalendar event format back to the format expected by expandRecurringEvent
+      const eventData = {
+        id: event.id as string,
+        title: event.title,
+        start: typeof event.start === 'string' ? event.start : event.start!.toISOString(),
+        end: typeof event.end === 'string' ? event.end : (event.end?.toISOString() || event.start!.toISOString()),
+        recurrence: event.extendedProps?.recurrence,
+        all_day: event.allDay || false,
+        ...event.extendedProps, // Include all other props
+      };
+
+      // Expand the recurring event with exception handling
+      const instances = expandRecurringEvent(
+        eventData,
+        currentDateRange.start,
+        currentDateRange.end,
+        exceptionEvents.map(ex => ({
+          recurrence_id: ex.extendedProps?.recurrence_id,
+          original_start: ex.extendedProps?.original_start,
+          status: ex.extendedProps?.status,
+        })),
+        365 // Max 365 instances (1 year limit)
+      );
+
+      // Convert back to FullCalendar format
+      return instances.map(instance => ({
+        ...event, // Keep original event properties
+        id: instance.id,
+        start: instance.start,
+        end: instance.end,
+        extendedProps: {
+          ...event.extendedProps,
+          ...instance.extendedProps,
+        },
+      }));
+    });
+
+    // Combine normal events, expanded recurring instances, and exception events
+    return [
+      ...normalEvents,
+      ...expandedRecurringInstances,
+      ...exceptionEvents,
+    ];
+  }, [events, currentDateRange]);
+
   // Merge Google Calendar events with local events
   // Filter out Google events that are already synced from LifeOS (to avoid duplicates)
   const syncedGoogleEventIds = new Set(
-    events
+    expandedEvents
       .map((e) => e.extendedProps?.google_event_id)
       .filter((id): id is string => !!id)
   );
@@ -540,7 +645,7 @@ export function CalendarView() {
   );
 
   const mergedEvents = [
-    ...events,
+    ...expandedEvents,
     ...uniqueGoogleEvents.map((gEvent) => {
       // Detect if it's an all-day event (Google uses 'date' format for all-day events)
       // If the start date doesn't contain 'T' (time separator), it's a date-only string

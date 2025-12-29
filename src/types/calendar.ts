@@ -99,6 +99,27 @@ export interface LifeOSEvent {
    * Used for 2-way sync: updates/deletes are propagated to Google
    */
   google_event_id?: string | null;
+
+  /**
+   * RRULE string (RFC 5545) for recurring events
+   * Example: "FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10"
+   * NULL for non-recurring events
+   */
+  recurrence?: string | null;
+
+  /**
+   * Parent recurring event ID if this is an exception
+   * Links a modified/cancelled instance to its parent event
+   * NULL for normal events and parent recurring events
+   */
+  recurrence_id?: string | null;
+
+  /**
+   * Original start time for exception instances
+   * Used to identify which occurrence in the series was modified
+   * NULL for normal events and parent recurring events
+   */
+  original_start?: string | null;
 }
 
 /**
@@ -116,6 +137,9 @@ export interface CreateLifeOSEvent {
   border_color?: string;
   text_color?: string;
   user_id?: string;
+  recurrence?: string | null;
+  recurrence_id?: string | null;
+  original_start?: string | null;
 }
 
 /**
@@ -133,6 +157,9 @@ export interface UpdateLifeOSEvent {
   background_color?: string;
   border_color?: string;
   text_color?: string;
+  recurrence?: string | null;
+  recurrence_id?: string | null;
+  original_start?: string | null;
 }
 
 /**

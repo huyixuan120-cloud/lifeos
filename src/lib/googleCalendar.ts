@@ -345,6 +345,7 @@ export async function createGoogleCalendarEvent(eventData: {
   description?: string;
   allDay?: boolean;
   backgroundColor?: string;
+  recurrence?: string | null;
 }): Promise<{ eventId: string | null; error: string | null }> {
   try {
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -388,6 +389,12 @@ export async function createGoogleCalendarEvent(eventData: {
       const colorId = mapHexToGoogleColorId(eventData.backgroundColor);
       eventPayload.colorId = colorId;
       console.log(`🎨 Creating event with color ${eventData.backgroundColor} → Google colorId ${colorId}`);
+    }
+
+    // Add recurrence rule if present
+    if (eventData.recurrence) {
+      eventPayload.recurrence = [`RRULE:${eventData.recurrence}`];
+      console.log(`🔁 Creating recurring event with RRULE: ${eventData.recurrence}`);
     }
 
     const apiUrl = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
@@ -435,6 +442,7 @@ export async function updateGoogleCalendarEvent(
     description?: string;
     backgroundColor?: string;
     allDay?: boolean;
+    recurrence?: string | null;
   }
 ): Promise<{ success: boolean; error: string | null }> {
   try {
@@ -487,6 +495,18 @@ export async function updateGoogleCalendarEvent(
       const colorId = mapHexToGoogleColorId(updates.backgroundColor);
       updatePayload.colorId = colorId;
       console.log(`🎨 Mapping color ${updates.backgroundColor} → Google colorId ${colorId}`);
+    }
+
+    // Update recurrence rule if present
+    if (updates.recurrence !== undefined) {
+      if (updates.recurrence) {
+        updatePayload.recurrence = [`RRULE:${updates.recurrence}`];
+        console.log(`🔁 Updating event with RRULE: ${updates.recurrence}`);
+      } else {
+        // If recurrence is null, remove it (convert to non-recurring)
+        updatePayload.recurrence = null;
+        console.log(`🔁 Removing recurrence from event`);
+      }
     }
 
     const apiUrl = `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`;

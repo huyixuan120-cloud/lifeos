@@ -98,6 +98,17 @@ export function useCalendar(): UseCalendarReturn {
       }
 
       if (data) {
+        // DEBUG: Log first event to see exact format from Supabase
+        if (data.length > 0) {
+          console.log("🔍 DEBUG - Raw event from Supabase:", {
+            id: data[0].id,
+            title: data[0].title,
+            start: data[0].start,
+            start_type: typeof data[0].start,
+            end: data[0].end,
+          });
+        }
+
         // Convert database events to FullCalendar format
         const formattedEvents = data.map((event: LifeOSEvent) =>
           toFullCalendarEvent(event)
@@ -127,7 +138,14 @@ export function useCalendar(): UseCalendarReturn {
           throw new Error("Not authenticated. Please sign in.");
         }
 
-        // Prepare data for database insertion
+        // EventDialog converts local time to UTC, so we receive UTC strings
+        // e.g., "2025-12-29T13:00:00.000Z" (already in UTC)
+        console.log("🔍 DEBUG - Saving to DB:", {
+          start: eventData.start,
+          end: eventData.end,
+          all_day: eventData.all_day
+        });
+
         const dbEvent = {
           title: eventData.title,
           start: eventData.start,
@@ -139,7 +157,12 @@ export function useCalendar(): UseCalendarReturn {
           border_color: eventData.border_color ?? "#3b82f6",
           text_color: eventData.text_color ?? "#ffffff",
           user_id: user.id, // Always use authenticated user's ID
+          recurrence: eventData.recurrence ?? null,
+          recurrence_id: eventData.recurrence_id ?? null,
+          original_start: eventData.original_start ?? null,
         };
+
+        console.log("🔍 DEBUG - Sending to Supabase:", dbEvent);
 
         // Step 1: Insert into Supabase first
         const { data, error: insertError } = await supabase
@@ -158,6 +181,12 @@ export function useCalendar(): UseCalendarReturn {
           throw new Error("Failed to create event - no data returned");
         }
 
+        console.log("🔍 DEBUG - Received from Supabase:", {
+          id: data.id,
+          start: data.start,
+          end: data.end,
+        });
+
         // Step 2: Try to sync to Google Calendar (if connected)
         try {
           const { isGoogleCalendarConnected, createGoogleCalendarEvent } = await import("@/lib/googleCalendar");
@@ -173,6 +202,7 @@ export function useCalendar(): UseCalendarReturn {
               description: eventData.description,
               allDay: eventData.all_day,
               backgroundColor: eventData.background_color,
+              recurrence: eventData.recurrence,
             });
 
             if (googleEventId && !googleError) {
@@ -243,6 +273,7 @@ export function useCalendar(): UseCalendarReturn {
         }
 
         // Prepare update data (only include provided fields)
+        // CalendarView already calls parseInputToISO which adds timezone offset
         const updateData: any = {};
         if (eventData.title !== undefined) updateData.title = eventData.title;
         if (eventData.start !== undefined) updateData.start = eventData.start;
@@ -253,6 +284,9 @@ export function useCalendar(): UseCalendarReturn {
         if (eventData.background_color !== undefined) updateData.background_color = eventData.background_color;
         if (eventData.border_color !== undefined) updateData.border_color = eventData.border_color;
         if (eventData.text_color !== undefined) updateData.text_color = eventData.text_color;
+        if (eventData.recurrence !== undefined) updateData.recurrence = eventData.recurrence;
+        if (eventData.recurrence_id !== undefined) updateData.recurrence_id = eventData.recurrence_id;
+        if (eventData.original_start !== undefined) updateData.original_start = eventData.original_start;
 
         // Step 2: Update in Supabase
         const { data, error: updateError } = await supabase
@@ -284,6 +318,7 @@ export function useCalendar(): UseCalendarReturn {
                 end: eventData.end,
                 description: eventData.description,
                 backgroundColor: eventData.background_color,
+                recurrence: eventData.recurrence,
               }
             );
 
