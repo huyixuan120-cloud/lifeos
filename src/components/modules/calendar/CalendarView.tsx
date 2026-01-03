@@ -720,7 +720,7 @@ export function CalendarView() {
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                 initialView="dayGridMonth"
                 initialDate={new Date()} // Start at today
-                timeZone="Europe/Rome" // Milano timezone
+                timeZone="local" // Use browser's local timezone
                 headerToolbar={{
                   left: "prev,next today",
                   center: "title",

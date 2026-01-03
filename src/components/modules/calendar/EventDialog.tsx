@@ -84,16 +84,16 @@ export function localToUTC(localDateTimeString: string): string {
 }
 
 /**
- * Converte ISO UTC dal database → datetime-local format (locale Milano)
+ * Converte ISO UTC dal database → datetime-local format (locale)
  *
- * @param utcISOString - "2025-12-29T13:00:00+00:00" dal DB
+ * @param utcInput - "2025-12-29T13:00:00+00:00" (string) o Date object dal DB/FullCalendar
  * @returns "2025-12-29T14:00" per input datetime-local
  */
-export function utcToLocal(utcISOString: string): string {
-  // Parse la stringa UTC
-  const date = new Date(utcISOString);
+export function utcToLocal(utcInput: string | Date): string {
+  // Converte a Date object se è una stringa
+  const date = typeof utcInput === 'string' ? new Date(utcInput) : utcInput;
 
-  // Estrai componenti in LOCAL time (Milano)
+  // Estrai componenti in LOCAL time del browser
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -103,7 +103,8 @@ export function utcToLocal(utcISOString: string): string {
   const result = `${year}-${month}-${day}T${hours}:${minutes}`;
 
   console.log("🔍 utcToLocal:", {
-    input: utcISOString,
+    input: typeof utcInput === 'string' ? utcInput : utcInput.toISOString(),
+    inputType: typeof utcInput,
     date: date.toString(),
     output: result,
   });

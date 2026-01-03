@@ -18,6 +18,7 @@ import {
   Dumbbell,
   LogIn,
   LogOut,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -29,9 +30,11 @@ import {
 } from "@/components/ui/tooltip";
 import { CommandPalette } from "@/components/ui/CommandPalette";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { ChatInterface } from "@/components/ai/chat-interface";
 import { useLifeOS } from "@/hooks/useLifeOS";
 import { createClient } from "@/utils/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { cn } from "@/lib/utils";
 
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -51,6 +54,7 @@ const navigationItems: NavItem[] = [
 ];
 
 const footerItems: NavItem[] = [
+  { icon: Sparkles, label: "AI Chat", href: "#" },
   { icon: RefreshCcw, label: "Sync", href: "#" },
   { icon: Bell, label: "Notifications", href: "#" },
   { icon: CircleHelp, label: "Help", href: "#" },
@@ -65,6 +69,9 @@ export function Sidebar() {
   // Auth state
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // AI Chat state
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Check authentication status on mount
   useEffect(() => {
@@ -104,10 +111,11 @@ export function Sidebar() {
     router.push("/login");
   };
 
-  const NavButton = ({ item }: { item: NavItem }) => {
+  const NavButton = ({ item, onClick }: { item: NavItem; onClick?: () => void }) => {
     const Icon = item.icon;
     const isActive = item.href && pathname === item.href;
     const isSearch = item.label === "Search";
+    const isAI = item.label === "AI Chat";
     const isFocus = item.href === "/focus";
     const showTimer = isFocus && timerState.timeLeft > 0 && timerState.timeLeft < timerState.duration;
 
@@ -118,12 +126,14 @@ export function Sidebar() {
         className={`relative w-12 h-12 rounded-lg transition-colors ${
           isActive
             ? "bg-primary text-primary-foreground hover:bg-primary/90"
+            : isAI
+            ? "bg-gradient-to-br from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20"
             : "hover:bg-accent hover:text-accent-foreground"
         }`}
-        asChild={!!item.href && item.href !== "#" && !isSearch}
-        onClick={isSearch ? handleSearchClick : undefined}
+        asChild={!!item.href && item.href !== "#" && !isSearch && !isAI}
+        onClick={onClick || (isSearch ? handleSearchClick : undefined)}
       >
-        {item.href && item.href !== "#" && !isSearch ? (
+        {item.href && item.href !== "#" && !isSearch && !isAI ? (
           <Link href={item.href}>
             <Icon className="h-5 w-5" />
             {/* Timer Active Indicator - Pulsing Dot */}
@@ -136,7 +146,7 @@ export function Sidebar() {
           </Link>
         ) : (
           <>
-            <Icon className="h-5 w-5" />
+            <Icon className={cn("h-5 w-5", isAI && "text-purple-600 dark:text-purple-400")} />
             {/* Timer Active Indicator - Pulsing Dot */}
             {showTimer && (
               <span className="absolute top-1 right-1 flex h-2 w-2">
@@ -200,7 +210,11 @@ export function Sidebar() {
           <div className="flex flex-col items-center gap-2">
             <Separator className="w-10 mb-2" />
             {footerItems.map((item, index) => (
-              <NavButton key={index} item={item} />
+              <NavButton
+                key={index}
+                item={item}
+                onClick={item.label === "AI Chat" ? () => setIsChatOpen(true) : undefined}
+              />
             ))}
 
             {/* Theme Toggle */}
@@ -236,6 +250,9 @@ export function Sidebar() {
 
       {/* Command Palette */}
       <CommandPalette />
+
+      {/* AI Chat Interface */}
+      <ChatInterface isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </TooltipProvider>
   );
 }

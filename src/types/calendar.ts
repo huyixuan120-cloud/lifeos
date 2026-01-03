@@ -164,13 +164,16 @@ export interface UpdateLifeOSEvent {
 
 /**
  * Converts a LifeOSEvent from database format to FullCalendar format
+ *
+ * IMPORTANT: Converts UTC strings to Date objects so FullCalendar displays them in local time
  */
 export function toFullCalendarEvent(event: LifeOSEvent) {
   return {
     id: event.id,
     title: event.title,
-    start: event.start,
-    end: event.end,
+    // Convert UTC strings to Date objects for correct local time display
+    start: new Date(event.start),
+    end: new Date(event.end),
     allDay: event.all_day,
     backgroundColor: event.background_color || "#3b82f6",
     borderColor: event.border_color || event.background_color || "#3b82f6",
@@ -180,6 +183,7 @@ export function toFullCalendarEvent(event: LifeOSEvent) {
       status: event.status,
       user_id: event.user_id,
       google_event_id: event.google_event_id, // Include for deduplication
+      recurrence: event.recurrence, // Include recurrence data
     },
   };
 }

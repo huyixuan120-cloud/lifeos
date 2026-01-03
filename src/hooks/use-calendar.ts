@@ -457,6 +457,59 @@ export function useCalendar(): UseCalendarReturn {
     }
   }, [user, fetchEvents]);
 
+  // Real-time subscription to events table
+  useEffect(() => {
+    if (!user) return;
+
+    console.log('🔄 Setting up real-time subscription for events');
+
+    // Subscribe to INSERT, UPDATE, DELETE on events table
+    const channel = supabase
+      .channel('events-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'events',
+          filter: `user_id=eq.${user.id}`, // Only this user's events
+        },
+        (payload) => {
+          console.log('🔔 Real-time event change:', payload);
+
+          if (payload.eventType === 'INSERT') {
+            // New event created (e.g., by AI)
+            const newEvent = payload.new as LifeOSEvent;
+            const formattedEvent = toFullCalendarEvent(newEvent);
+            setEvents((prev) => [...prev, formattedEvent]);
+            console.log('✅ Event added via real-time:', newEvent.title);
+          } else if (payload.eventType === 'UPDATE') {
+            // Event updated
+            const updatedEvent = payload.new as LifeOSEvent;
+            const formattedEvent = toFullCalendarEvent(updatedEvent);
+            setEvents((prev) =>
+              prev.map((event) =>
+                event.id === updatedEvent.id ? formattedEvent : event
+              )
+            );
+            console.log('✅ Event updated via real-time:', updatedEvent.title);
+          } else if (payload.eventType === 'DELETE') {
+            // Event deleted
+            const deletedEvent = payload.old as LifeOSEvent;
+            setEvents((prev) => prev.filter((event) => event.id !== deletedEvent.id));
+            console.log('✅ Event deleted via real-time:', deletedEvent.id);
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on unmount
+    return () => {
+      console.log('🔌 Unsubscribing from real-time events');
+      supabase.removeChannel(channel);
+    };
+  }, [user, supabase]);
+
   return {
     events,
     isLoading,
