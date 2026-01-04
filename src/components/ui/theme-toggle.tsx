@@ -34,14 +34,20 @@ export function ThemeToggle() {
 
   const isDark = theme === "dark";
 
+  const handleToggle = () => {
+    const newTheme = isDark ? "light" : "dark";
+    console.log(`🌓 Theme toggle clicked: ${theme} -> ${newTheme}`);
+    setTheme(newTheme);
+  };
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setTheme(isDark ? "light" : "dark")}
-          className="w-12 h-12 rounded-lg transition-colors hover:bg-accent hover:text-accent-foreground"
+          onClick={handleToggle}
+          className="w-12 h-12 rounded-lg transition-colors hover:bg-accent hover:text-accent-foreground pointer-events-auto"
         >
           {isDark ? (
             <Sun className="h-5 w-5 text-amber-500" />

@@ -99,16 +99,24 @@ export function Sidebar() {
   };
 
   const handleSearchClick = () => {
+    console.log('🔍 Search clicked - Opening command palette');
     window.dispatchEvent(new Event("open-command-palette"));
   };
 
   const handleLogout = async () => {
+    console.log('👋 Logout clicked');
     await supabase.auth.signOut();
     router.push("/login");
   };
 
   const handleLogin = () => {
+    console.log('🔐 Login clicked');
     router.push("/login");
+  };
+
+  const handleAIChatClick = () => {
+    console.log('💬 AI Chat clicked - Opening chat');
+    setIsChatOpen(true);
   };
 
   const NavButton = ({ item, onClick }: { item: NavItem; onClick?: () => void }) => {
@@ -119,43 +127,73 @@ export function Sidebar() {
     const isFocus = item.href === "/focus";
     const showTimer = isFocus && timerState.timeLeft > 0 && timerState.timeLeft < timerState.duration;
 
+    const handleClick = (e: React.MouseEvent) => {
+      console.log(`🖱️ NavButton clicked: ${item.label}`, { href: item.href, isSearch, isAI });
+      if (onClick) {
+        e.preventDefault();
+        onClick();
+      } else if (isSearch) {
+        e.preventDefault();
+        handleSearchClick();
+      }
+    };
+
+    // Render as Link for navigation items
+    if (item.href && item.href !== "#" && !isSearch && !isAI) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`relative w-12 h-12 rounded-lg transition-colors pointer-events-auto ${
+                isActive
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "hover:bg-accent hover:text-accent-foreground"
+              }`}
+              asChild
+            >
+              <Link href={item.href} onClick={() => console.log(`🔗 Navigation link clicked: ${item.label} -> ${item.href}`)}>
+                <Icon className="h-5 w-5" />
+                {showTimer && (
+                  <span className="absolute top-1 right-1 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                  </span>
+                )}
+              </Link>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <div>
+              <p>{item.label}</p>
+              {showTimer && (
+                <div className="mt-1 flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                  <p className="text-xs font-mono text-green-600 dark:text-green-400 font-semibold">
+                    {formatTime(timerState.timeLeft)}
+                  </p>
+                </div>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+
+    // Render as button for action items
     const button = (
       <Button
         variant="ghost"
         size="icon"
-        className={`relative w-12 h-12 rounded-lg transition-colors ${
-          isActive
-            ? "bg-primary text-primary-foreground hover:bg-primary/90"
-            : isAI
+        className={`relative w-12 h-12 rounded-lg transition-colors pointer-events-auto ${
+          isAI
             ? "bg-gradient-to-br from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20"
             : "hover:bg-accent hover:text-accent-foreground"
         }`}
-        asChild={!!item.href && item.href !== "#" && !isSearch && !isAI}
-        onClick={onClick || (isSearch ? handleSearchClick : undefined)}
+        onClick={handleClick}
       >
-        {item.href && item.href !== "#" && !isSearch && !isAI ? (
-          <Link href={item.href}>
-            <Icon className="h-5 w-5" />
-            {/* Timer Active Indicator - Pulsing Dot */}
-            {showTimer && (
-              <span className="absolute top-1 right-1 flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-              </span>
-            )}
-          </Link>
-        ) : (
-          <>
-            <Icon className={cn("h-5 w-5", isAI && "text-purple-600 dark:text-purple-400")} />
-            {/* Timer Active Indicator - Pulsing Dot */}
-            {showTimer && (
-              <span className="absolute top-1 right-1 flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-              </span>
-            )}
-          </>
-        )}
+        <Icon className={cn("h-5 w-5", isAI && "text-purple-600 dark:text-purple-400")} />
       </Button>
     );
 
@@ -165,15 +203,6 @@ export function Sidebar() {
         <TooltipContent side="right">
           <div>
             <p>{item.label}</p>
-            {/* Show timer in tooltip when Focus timer is active */}
-            {showTimer && (
-              <div className="mt-1 flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                <p className="text-xs font-mono text-green-600 dark:text-green-400 font-semibold">
-                  {formatTime(timerState.timeLeft)}
-                </p>
-              </div>
-            )}
             {isSearch && (
               <p className="text-xs text-muted-foreground mt-1">
                 {typeof window !== "undefined" && navigator.platform.includes("Mac") ? "⌘K" : "Ctrl+K"}
@@ -187,8 +216,8 @@ export function Sidebar() {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <aside className="hidden md:flex fixed left-0 top-0 z-40 h-screen w-16 border-r bg-background">
-        <div className="flex h-full flex-col items-center justify-between py-4">
+      <aside className="hidden md:flex fixed left-0 top-0 z-50 h-screen w-16 border-r bg-background pointer-events-auto">
+        <div className="flex h-full flex-col items-center justify-between py-4 pointer-events-auto">
           {/* Top Section: Logo + Navigation */}
           <div className="flex flex-col items-center gap-4">
             {/* Logo */}
@@ -213,7 +242,7 @@ export function Sidebar() {
               <NavButton
                 key={index}
                 item={item}
-                onClick={item.label === "AI Chat" ? () => setIsChatOpen(true) : undefined}
+                onClick={item.label === "AI Chat" ? handleAIChatClick : undefined}
               />
             ))}
 

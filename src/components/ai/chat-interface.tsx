@@ -1,255 +1,163 @@
-"use client";
+'use client';
 
-import { useChat } from '@ai-sdk/react';
-import { useEffect, useRef, useState } from 'react';
-import { Send, Sparkles, Loader2, X } from 'lucide-react';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Send, Sparkles, Loader2, User, Bot } from 'lucide-react';
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
+type Message = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+};
+
 interface ChatInterfaceProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-/**
- * LifeOS AI Chat Interface
- *
- * A slide-over chat panel that acts as the intelligent assistant for LifeOS.
- * Uses Vercel AI SDK's useChat hook for streaming responses.
- *
- * Features:
- * - Real-time streaming responses
- * - Auto-scroll to latest message
- * - Clean Shadcn UI design
- * - Keyboard shortcuts (Enter to send, Shift+Enter for new line)
- */
-export function ChatInterface({ isOpen, onClose }: ChatInterfaceProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+export function ChatInterface({ isOpen: externalIsOpen, onClose }: ChatInterfaceProps = {}) {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
 
-  const { messages, sendMessage, status, error } = useChat({
-    api: '/api/chat',
-    onError: (error) => {
-      console.error('❌ Chat Error:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name,
-      });
-    },
-    onFinish: (message) => {
-      console.log('✅ Chat finished:', message);
-    },
-  });
+  // Use external control if provided, otherwise use internal state
+  const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
+  const setIsOpen = onClose ? (open: boolean) => { if (!open) onClose(); } : setInternalIsOpen;
 
-  const isLoading = status === 'in_progress';
-
-  // Log status changes for debugging
+  // Auto-scroll
   useEffect(() => {
-    console.log('🔄 Chat status changed:', status);
-  }, [status]);
-
-  // Auto-scroll to bottom when new messages arrive
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Focus textarea when sheet opens
-  useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => {
-        textareaRef.current?.focus();
-      }, 100);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [isOpen]);
+  }, [messages, isLoading]);
 
-  // Handle form submission
-  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (input.trim() && !isLoading) {
-      await sendMessage({
-        role: 'user',
-        content: input,
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: input };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      // 1. Chiamata Diretta
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [...messages, userMsg] }),
       });
-      setInput('');
-    }
-  };
 
-  // Handle keyboard shortcuts
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (input.trim() && !isLoading) {
-        sendMessage({
-          role: 'user',
-          content: input,
-        });
-        setInput('');
+      if (!response.body) throw new Error("No response body");
+
+      // 2. Creiamo il messaggio vuoto per l'AI
+      const aiMsgId = (Date.now() + 1).toString();
+      setMessages(prev => [...prev, { id: aiMsgId, role: 'assistant', content: '' }]);
+
+      // 3. Lettura Manuale dello Stream (Byte per Byte)
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let accumulatedText = "";
+
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        const chunkValue = decoder.decode(value, { stream: true });
+        accumulatedText += chunkValue;
+
+        // Aggiorniamo l'ultimo messaggio in tempo reale
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiMsgId ? { ...msg, content: accumulatedText } : msg
+        ));
       }
+
+    } catch (error: any) {
+      setMessages(prev => [...prev, { 
+        id: Date.now().toString(), 
+        role: 'assistant', 
+        content: `🚨 Errore di connessione: ${error.message}` 
+      }]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent side="right" className="w-full sm:w-[500px] p-0 flex flex-col">
-        {/* Header */}
-        <SheetHeader className="px-6 py-4 border-b">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-white" />
-              </div>
-              <div>
-                <SheetTitle className="text-lg font-semibold">LifeOS AI</SheetTitle>
-                <SheetDescription className="text-xs">
-                  Your intelligent productivity assistant
-                </SheetDescription>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="h-8 w-8 rounded-lg"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+    <Sheet open={isOpen} onOpenChange={setIsOpen}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="fixed bottom-4 right-4 h-12 w-12 rounded-full shadow-lg bg-primary text-primary-foreground hover:bg-primary/90 z-50">
+          <Sparkles className="h-6 w-6" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="right" className="w-[400px] sm:w-[540px] p-0 flex flex-col">
+        <SheetHeader className="p-4 border-b">
+          <SheetTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            LifeOS AI
+          </SheetTitle>
+          <SheetDescription>Assistente Produttività</SheetDescription>
         </SheetHeader>
 
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          {messages.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center text-center space-y-4 py-12">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 flex items-center justify-center">
-                <Sparkles className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+        <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+          <div className="space-y-4 pb-4">
+            {messages.length === 0 && (
+              <div className="text-center text-muted-foreground mt-10">
+                <p>Ciao! Sono pronta ad aiutarti con il calendario.</p>
+                <p className="text-xs mt-2">Prova: "Aggiungi riunione domani alle 10"</p>
               </div>
-              <div className="space-y-2 max-w-sm">
-                <h3 className="font-semibold text-lg">Welcome to LifeOS AI</h3>
-                <p className="text-sm text-muted-foreground">
-                  I'm here to help you organize your life, manage tasks, and achieve your goals.
-                  Ask me anything!
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2 justify-center max-w-md">
-                <button
-                  onClick={() => {
-                    setInput("What can you help me with?");
-                    setTimeout(() => textareaRef.current?.focus(), 0);
-                  }}
-                  className="px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded-lg transition-colors"
-                >
-                  What can you help me with?
-                </button>
-                <button
-                  onClick={() => {
-                    setInput("Help me plan my day");
-                    setTimeout(() => textareaRef.current?.focus(), 0);
-                  }}
-                  className="px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded-lg transition-colors"
-                >
-                  Help me plan my day
-                </button>
-                <button
-                  onClick={() => {
-                    setInput("Give me productivity tips");
-                    setTimeout(() => textareaRef.current?.focus(), 0);
-                  }}
-                  className="px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 rounded-lg transition-colors"
-                >
-                  Productivity tips
-                </button>
-              </div>
-            </div>
-          )}
-
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={cn(
-                "flex w-full",
-                message.role === 'user' ? 'justify-end' : 'justify-start'
-              )}
-            >
-              <div
-                className={cn(
-                  "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm",
-                  message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-foreground'
-                )}
-              >
-                <div className="whitespace-pre-wrap break-words">{message.content}</div>
-              </div>
-            </div>
-          ))}
-
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-muted rounded-2xl px-4 py-2.5">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              </div>
-            </div>
-          )}
-
-          {error && (
-            <div className="flex justify-center">
-              <div className="bg-destructive/10 text-destructive rounded-lg px-4 py-3 text-sm border border-destructive/20">
-                <div className="font-semibold mb-1">❌ Error</div>
-                <div className="text-xs opacity-90">
-                  {error.message || 'Something went wrong. Please try again.'}
+            )}
+            
+            {messages.map((m) => (
+              <div key={m.id} className={cn("flex gap-3", m.role === 'user' ? "flex-row-reverse" : "flex-row")}>
+                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0", 
+                  m.role === 'user' ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                  {m.role === 'user' ? <User size={16} /> : <Bot size={16} />}
                 </div>
-                <div className="text-xs opacity-70 mt-1">
-                  Check browser console (F12) and terminal for details
+                <div className={cn("rounded-lg p-3 max-w-[80%] text-sm", 
+                  m.role === 'user' ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                  {m.content}
                 </div>
               </div>
-            </div>
-          )}
+            ))}
+            
+            {isLoading && (
+              <div className="flex gap-3">
+                 <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                   <Bot size={16} />
+                 </div>
+                 <div className="bg-muted rounded-lg p-3 flex items-center">
+                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                   Thinking...
+                 </div>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
 
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input Area */}
-        <div className="border-t bg-background p-4">
-          <form onSubmit={onSubmit} className="flex gap-2">
+        <div className="p-4 bg-background border-t">
+          <div className="flex gap-2">
             <Textarea
-              ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask me anything..."
-              className="min-h-[60px] max-h-[120px] resize-none rounded-xl"
-              disabled={isLoading}
+              placeholder="Chiedimi qualcosa..."
+              className="min-h-[50px] resize-none"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
             />
-            <Button
-              type="submit"
-              size="icon"
-              disabled={!input.trim() || isLoading}
-              className="h-[60px] w-[60px] rounded-xl shrink-0"
-            >
-              {isLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Send className="h-5 w-5" />
-              )}
+            <Button size="icon" className="h-[50px] w-[50px] shrink-0" onClick={handleSend} disabled={isLoading}>
+              <Send className="h-5 w-5" />
             </Button>
-          </form>
-          <p className="text-[10px] text-muted-foreground mt-2 text-center">
-            Press Enter to send, Shift+Enter for new line
-          </p>
+          </div>
         </div>
       </SheetContent>
     </Sheet>

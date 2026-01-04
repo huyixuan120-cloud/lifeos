@@ -3,141 +3,102 @@ import { streamText, tool } from 'ai';
 import { z } from 'zod';
 import { createClient } from '@/utils/supabase/server';
 
-// Force dynamic rendering
-export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
-/**
- * Helper function to generate mock calendar events
- * Used as fallback when Supabase is not configured or errors occur
- */
-function getMockEvents(date?: string) {
-  const today = new Date();
-  const targetDate = date ? new Date(date) : today;
+// 1. Definiamo gli schemi PRIMA per evitare errori di serializzazione
+const GetEventsSchema = z.object({
+  date: z.string().describe("Date in YYYY-MM-DD format. If omitted, fetches upcoming events.").nullable().default(null as any),
+});
 
-  return [
-    {
-      id: 'mock-1',
-      title: 'Team Standup',
-      start: new Date(targetDate.setHours(9, 0, 0)).toISOString(),
-      end: new Date(targetDate.setHours(9, 30, 0)).toISOString(),
-      description: 'Daily team sync',
-      allDay: false,
-    },
-    {
-      id: 'mock-2',
-      title: 'LifeOS Development Session',
-      start: new Date(targetDate.setHours(10, 0, 0)).toISOString(),
-      end: new Date(targetDate.setHours(12, 0, 0)).toISOString(),
-      description: 'Focus time for coding',
-      allDay: false,
-    },
-    {
-      id: 'mock-3',
-      title: 'Lunch Break',
-      start: new Date(targetDate.setHours(12, 30, 0)).toISOString(),
-      end: new Date(targetDate.setHours(13, 30, 0)).toISOString(),
-      description: null,
-      allDay: false,
-    },
-  ];
-}
+const CreateEventSchema = z.object({
+  title: z.string().describe("Title of the event"),
+  start: z.string().describe("Start time (ISO 8601: YYYY-MM-DDTHH:mm:ss)"),
+  end: z.string().describe("End time (ISO 8601: YYYY-MM-DDTHH:mm:ss)"),
+  description: z.string().describe("Optional details").default(""),
+});
 
-/**
- * LifeOS AI Chat API Route
- *
- * Handles streaming chat completions using OpenAI via Vercel AI SDK.
- * The AI acts as LifeOS - a personal assistant for productivity and organization.
- *
- * Tool Calling:
- * - getCalendarEvents: Retrieves user's calendar events from Supabase
- */
 export async function POST(req: Request) {
-  console.log('🔥 HIT: /api/chat endpoint reached');
-  console.log('📨 POST /api/chat - Request received');
-
   try {
     const { messages } = await req.json();
-    console.log('💬 Messages received:', messages?.length || 0);
 
-    // Get OpenAI API key from environment
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
-      console.error('❌ FATAL: No OpenAI API Key found in environment');
-      return new Response(
-        JSON.stringify({
-          error: 'OpenAI API key not configured. Please add OPENAI_API_KEY to your .env.local file.'
-        }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    console.log('✅ OpenAI API key found');
-
-    // SIMPLIFIED System prompt for LifeOS AI (NO TOOLS FOR DEBUGGING)
-    const systemPrompt = `You are LifeOS, an intelligent personal assistant focused on productivity, organization, and life management.
-
-Your capabilities include:
-- Helping users plan their day and manage tasks
-- Providing insights on time management and focus
-- Suggesting strategies for achieving goals
-- Organizing thoughts and ideas
-- Offering motivation and accountability
-
-Communication style:
-- Be concise but helpful
-- Use a friendly, professional tone
-- Provide actionable advice
-- Support the user's growth and productivity journey
-
-Remember: You are an overlay assistant for the LifeOS productivity system.`;
-
-    // Stream the AI response - SIMPLIFIED (NO TOOLS FOR DEBUGGING)
-    console.log('🚀 Calling streamText with basic config (no tools)');
+    // 2. Configurazione AI con gestione errori integrata
     const result = await streamText({
-      model: openai('gpt-4o-mini'), // Using gpt-4o-mini for cost efficiency
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages
-      ],
-      temperature: 0.7,
-      maxTokens: 1000,
-      // TOOLS COMPLETELY REMOVED FOR DEBUGGING
+      model: openai('gpt-4o-mini'),
+      messages,
+      maxSteps: 5, // Permette all'AI di usare i tool e poi risponderti
+      system: "You are LifeOS, a helpful productivity assistant. Always confirm when an action is taken. Today's date is " + new Date().toISOString().split('T')[0],
+      tools: {
+        getCalendarEvents: tool({
+          description: 'Get calendar events',
+          parameters: GetEventsSchema,
+          execute: async ({ date }) => {
+            try {
+              const supabase = await createClient();
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) return "Error: User not authenticated";
+
+              let query = supabase.from('events').select('*').eq('user_id', user.id);
+
+              if (date && date !== null) {
+                // Filtro semplice per la data specifica
+                const startDay = `${date}T00:00:00`;
+                const endDay = `${date}T23:59:59`;
+                query = query.gte('start', startDay).lte('start', endDay);
+              } else {
+                // Altrimenti prendi i futuri
+                query = query.gte('start', new Date().toISOString());
+              }
+
+              const { data, error } = await query.limit(10);
+              if (error) throw error;
+              if (!data || data.length === 0) return "No events found.";
+              return JSON.stringify(data);
+            } catch (err: any) {
+              return `Database Error: ${err.message}`;
+            }
+          },
+        }),
+        createCalendarEvent: tool({
+          description: 'Create a calendar event',
+          parameters: CreateEventSchema,
+          execute: async ({ title, start, end, description }) => {
+            try {
+              const supabase = await createClient();
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) return "Error: User not authenticated";
+
+              const { data, error } = await supabase.from('events').insert({
+                user_id: user.id,
+                title,
+                start,
+                end,
+                description: description || '',
+              }).select();
+
+              if (error) throw error;
+              return `Event created: ${JSON.stringify(data)}`;
+            } catch (err: any) {
+              return `Database Error: ${err.message}`;
+            }
+          },
+        }),
+      },
     });
 
-    console.log('✅ streamText completed successfully');
-    console.log('📤 Returning streaming response to client');
+    // 3. RESTITUIAMO SOLO TESTO PURO (Fix definitivo per "Thinking...")
+    return new Response(result.textStream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
 
-    // Return the streaming response
-    return result.toTextStreamResponse();
-
-  } catch (error) {
-    console.error('❌ Error in chat API:', error);
-
-    // Enhanced error logging
-    if (error instanceof Error) {
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-    }
-
-    // Check if it's an OpenAI API error
-    if (error && typeof error === 'object' && 'cause' in error) {
-      console.error('Error cause:', error.cause);
-    }
-
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'An unexpected error occurred',
-        details: error instanceof Error ? error.stack : String(error),
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
+  } catch (error: any) {
+    // 4. Se il server esplode, lo diciamo al frontend invece di stare zitti
+    console.error("SERVER CRASH:", error);
+    return new Response(`🚨 SYSTEM ERROR: ${error.message}`, {
+      status: 200, 
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+    });
   }
 }
